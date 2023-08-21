@@ -4,7 +4,7 @@ The `vpn_connection_detector` package provides a simple and efficient way to det
 
 ## Features
 
-- Monitor VPN connection status with ease.
+- Detect VPN connection status with ease.
 - Detect changes in VPN connectivity and trigger events accordingly.
 - Designed as a singleton for efficient resource management.
 
@@ -25,13 +25,13 @@ Import the `package` package in your `Dart/Flutter` file:
 import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 ```
 
-Create a `VpnConnectionMonitor` Instance
+Create a `VpnConnectionDetector` Instance
 ```
-final vpnMonitor = VpnConnectionMonitor(Duration(seconds: 30));
+final vpnDETECTOR = VpnConnectionDetector(Duration(seconds: 30));
 ```
 ### Access the VPN Connection Stream
 ```
-vpnMonitor.vpnConnectionStream.listen((state) {
+VpnDetector.vpnConnectionStream.listen((state) {
   if (state == VpnConnectionState.connected) {
     print("VPN connected.");
     // Handle VPN connected event
@@ -43,12 +43,12 @@ vpnMonitor.vpnConnectionStream.listen((state) {
 ```
 ### Check the VPN Connection Status Manually
 ```
-bool isVpnConnected = await vpnMonitor.isVpnActive();
+bool isVpnConnected = await vpn.isVpnActive();
 ```
 
-### Dispose of the VpnConnectionMonitor Instance
+### Dispose of the VpnConnectionDetector Instance
 ```
-vpnMonitor.dispose();
+VpnDetector.dispose();
 ```
 ### Example
 
