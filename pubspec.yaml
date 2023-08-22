@@ -8,8 +8,12 @@ environment:
   flutter: ">=3.3.0"
   
 platforms:
-  - android
-  - ios
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
 
 dependencies:
   connectivity_plus: ^4.0.2
