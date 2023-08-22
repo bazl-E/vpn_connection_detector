@@ -27,11 +27,11 @@ import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 
 Create a `VpnConnectionDetector` Instance
 ```
-final vpnDETECTOR = VpnConnectionDetector(Duration(seconds: 30));
+final vpnDetector = VpnConnectionDetector(Duration(seconds: 30));
 ```
 ### Access the VPN Connection Stream
 ```
-VpnDetector.vpnConnectionStream.listen((state) {
+vpnDetector.vpnConnectionStream.listen((state) {
   if (state == VpnConnectionState.connected) {
     print("VPN connected.");
     // Handle VPN connected event
@@ -43,12 +43,12 @@ VpnDetector.vpnConnectionStream.listen((state) {
 ```
 ### Check the VPN Connection Status Manually
 ```
-bool isVpnConnected = await vpn.isVpnActive();
+bool isVpnConnected = await vpnDetector.isVpnActive();
 ```
 
 ### Dispose of the VpnConnectionDetector Instance
 ```
-VpnDetector.dispose();
+vpnDetector.dispose();
 ```
 ### Example
 

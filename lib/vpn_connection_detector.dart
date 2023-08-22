@@ -37,7 +37,7 @@ class VpnConnectionDetector {
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   ///Check weather a vpn is connected or not which returns a bool
-  Future<bool> isVpnActive() async {
+  static Future<bool> isVpnActive() async {
     try {
       final interfaces = await NetworkInterface.list();
 
@@ -84,7 +84,7 @@ class VpnConnectionDetector {
     _connectivitySubscription.cancel();
   }
 
-  final List<String> _commonVpnInterfaceNamePatterns = [
+  static final List<String> _commonVpnInterfaceNamePatterns = [
     'tun', // Linux/Unix TUN interface
     'tap', // Linux/Unix TAP interface
     'ppp', // Point-to-Point Protocol
