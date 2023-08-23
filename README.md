@@ -19,7 +19,7 @@ dependencies:
   vpn_connection_detector: ^1.0.0 # Use the latest version
 ```
 
-### Installation
+### Usage
 Import the `package` package in your `Dart/Flutter` file:
 ```
 import 'package:vpn_connection_detector/vpn_connection_detector.dart';
