@@ -16,7 +16,7 @@ Add the `vpn_connection_detector` package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vpn_connection_detector: ^1.0.0 # Use the latest version
+  vpn_connection_detector: ^1.0.4 # Use the latest version
 ```
 
 ### Usage
@@ -27,7 +27,7 @@ import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 
 Create a `VpnConnectionDetector` Instance
 ```
-final vpnDetector = VpnConnectionDetector(Duration(seconds: 30));
+final vpnDetector = VpnConnectionDetector();
 ```
 ### Access the VPN Connection Stream
 ```
@@ -43,10 +43,11 @@ vpnDetector.vpnConnectionStream.listen((state) {
 ```
 ### Check the VPN Connection Status Manually
 ```
-bool isVpnConnected = await vpnDetector.isVpnActive();
+bool isVpnConnected = await VpnConnectionDetector.isVpnActive();
 ```
 
 ### Dispose of the VpnConnectionDetector Instance
+If using `vpnConnectionStream`, remember to `dispose`. Otherwise, use `VpnConnectionDetector.isVpnActive()` function without concerns.
 ```
 vpnDetector.dispose();
 ```

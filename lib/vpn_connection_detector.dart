@@ -34,9 +34,11 @@ class VpnConnectionDetector {
   }
   final StreamController<VpnConnectionState> _controller =
       StreamController.broadcast();
-  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   ///Check weather a vpn is connected or not which returns a bool
+  ///No need to use [dispose] if you are only using [isVpnActive] it is static method
+  ///if you are using the [vpnConnectionStream] u have to call [dispose]
   static Future<bool> isVpnActive() async {
     try {
       final interfaces = await NetworkInterface.list();
@@ -57,8 +59,7 @@ class VpnConnectionDetector {
       _controller.stream.asBroadcastStream();
 
   Future<void> _checkVpnStatus() async {
-    final currentVpnStatus = await _isVpnActive();
-
+    final currentVpnStatus = await isVpnActive();
     if (currentVpnStatus) {
       _controller.add(VpnConnectionState.connected);
     } else {
@@ -66,22 +67,11 @@ class VpnConnectionDetector {
     }
   }
 
-  Future<bool> _isVpnActive() async {
-    try {
-      final interfaces = await NetworkInterface.list();
-
-      return interfaces.any((interface) => _commonVpnInterfaceNamePatterns
-          .any((pattern) => interface.name.toLowerCase().contains(pattern)));
-    } catch (e) {
-      // Handle exceptions, e.g., if the network interface list cannot be retrieved
-      return false;
-    }
-  }
-
   /// Dispose all the Connection streams
+  /// use [dispose] only if you are using the [vpnConnectionStream]
   void dispose() {
     _controller.close();
-    _connectivitySubscription.cancel();
+    _connectivitySubscription?.cancel();
   }
 
   static final List<String> _commonVpnInterfaceNamePatterns = [
