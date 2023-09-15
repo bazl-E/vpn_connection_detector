@@ -4,7 +4,7 @@ import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('VpnConnectionDetector Tests', () {
+  group(' Tests', () {
     late VpnConnectionDetector vpnConnectionDetector;
 
     setUp(() {
