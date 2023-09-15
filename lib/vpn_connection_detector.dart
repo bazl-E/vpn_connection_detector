@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/cupertino.dart';
 
 ///[VpnConnectionState] has two values [connected],[disconnected]
 ///return [VpnConnectionState.connected] if vpn connection is active
@@ -29,7 +30,7 @@ class VpnConnectionDetector {
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
         .listen((ConnectivityResult result) async {
-      await _checkVpnStatus();
+      await checkVpnStatus();
     });
   }
   final StreamController<VpnConnectionState> _controller =
@@ -58,7 +59,7 @@ class VpnConnectionDetector {
   Stream<VpnConnectionState> get vpnConnectionStream =>
       _controller.stream.asBroadcastStream();
 
-  Future<void> _checkVpnStatus() async {
+  Future<void> checkVpnStatus() async {
     final currentVpnStatus = await isVpnActive();
     if (currentVpnStatus) {
       _controller.add(VpnConnectionState.connected);
@@ -73,6 +74,9 @@ class VpnConnectionDetector {
     _controller.close();
     _connectivitySubscription?.cancel();
   }
+
+  static List<String> get commonVpnInterfaceNamePatterns =>
+      _commonVpnInterfaceNamePatterns;
 
   static final List<String> _commonVpnInterfaceNamePatterns = [
     'tun', // Linux/Unix TUN interface
