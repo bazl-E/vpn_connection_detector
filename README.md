@@ -16,7 +16,7 @@ Add the `vpn_connection_detector` package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vpn_connection_detector: ^1.0.4 # Use the latest version
+  vpn_connection_detector: ^1.0.6 # Use the latest version
 ```
 
 ### Usage
