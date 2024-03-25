@@ -16,7 +16,7 @@ platforms:
   windows:
 
 dependencies:
-  connectivity_plus: ^5.0.2
+  connectivity_plus: ^6.0.1
   flutter:
     sdk: flutter
   
