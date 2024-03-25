@@ -28,13 +28,13 @@ class VpnConnectionDetector {
     // Listen to network connectivity changes
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
-        .listen((ConnectivityResult result) async {
+        .listen((List<ConnectivityResult> result) async {
       await _checkVpnStatus();
     });
   }
   final StreamController<VpnConnectionState> _controller =
       StreamController.broadcast();
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   ///Check weather a vpn is connected or not which returns a bool
   ///No need to use [dispose] if you are only using [isVpnActive] it is static method
