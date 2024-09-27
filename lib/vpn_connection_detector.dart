@@ -48,10 +48,13 @@ class VpnConnectionDetector {
         return _commonVpnInterfaceNamePatterns.any((pattern) {
           if (isIosDevice &&
               (interface.name.toLowerCase().contains('ipsec') ||
+                  interface.name.toLowerCase().contains('utun6') ||
                   interface.name.toLowerCase().contains('ikev2') ||
                   interface.name.toLowerCase().contains('l2tp'))) {
             return false;
           }
+          // print(
+          //     "interface name: ${interface.name} contains $pattern  ${interface.name.toLowerCase().contains(pattern)}");
           return interface.name.toLowerCase().contains(pattern);
         });
       });
