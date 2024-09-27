@@ -39,12 +39,22 @@ class VpnConnectionDetector {
   ///Check weather a vpn is connected or not which returns a bool
   ///No need to use [dispose] if you are only using [isVpnActive] it is static method
   ///if you are using the [vpnConnectionStream] u have to call [dispose]
+  ///Ignore false detection in iOS 17.0 and later
   static Future<bool> isVpnActive() async {
     try {
       final interfaces = await NetworkInterface.list();
-
-      return interfaces.any((interface) => _commonVpnInterfaceNamePatterns
-          .any((pattern) => interface.name.toLowerCase().contains(pattern)));
+      bool isIosDevice = Platform.isIOS;
+      return interfaces.any((interface) {
+        return _commonVpnInterfaceNamePatterns.any((pattern) {
+          if (isIosDevice &&
+              (interface.name.toLowerCase().contains('ipsec') ||
+                  interface.name.toLowerCase().contains('ikev2') ||
+                  interface.name.toLowerCase().contains('l2tp'))) {
+            return false;
+          }
+          return interface.name.toLowerCase().contains(pattern);
+        });
+      });
     } catch (e) {
       // Handle exceptions, e.g., if the network interface list cannot be retrieved
       return false;
