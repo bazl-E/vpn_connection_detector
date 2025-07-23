@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Released]
 
 
+## [1.0.10] - 2025-07-23
+### Fixed
+- connectivity_plus updated to 6.1.4
 ## [1.0.9] - 2024-09-27
 ### Fixed
 - ignore false detection by mistake in iOS 17.0 and later
