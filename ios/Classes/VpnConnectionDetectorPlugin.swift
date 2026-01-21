@@ -11,7 +11,7 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     private let monitorQueue = DispatchQueue(label: "com.vpnconnectiondetector.monitor")
     
     // Enable debug logging
-    private let debugEnabled = true
+    private let debugEnabled = false
     
     private func log(_ message: String) {
         if debugEnabled {
