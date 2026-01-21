@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [1.0.11] - 2026-01-21
+### Changed
+- Bumped package version to `1.0.11`.
+- Updated dependency: `connectivity_plus` -> `^7.0.0`.
+
+
 
 ## [1.0.10] - 2025-07-23
 ### Fixed
