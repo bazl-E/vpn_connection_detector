@@ -1,7 +1,9 @@
 name: vpn_connection_detector
-description: VPN connection detecting in Dart. Singleton class with state stream & connection check.
-version: 1.0.11
+description: VPN connection detection for Flutter with native iOS & Android support. Includes real-time status stream & one-time checks.
+version: 2.0.0
 homepage: https://github.com/bazl-E/vpn_connection_detector
+repository: https://github.com/bazl-E/vpn_connection_detector
+issue_tracker: https://github.com/bazl-E/vpn_connection_detector/issues
 
 environment:
   sdk: '>=3.1.0 <4.0.0'
@@ -12,15 +14,24 @@ platforms:
   ios:
   linux:
   macos:
-  web:
   windows:
 
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.bazle.vpn_connection_detector
+        pluginClass: VpnConnectionDetectorPlugin
+      ios:
+        pluginClass: VpnConnectionDetectorPlugin
+
 dependencies:
-  connectivity_plus: ^7.0.0
+  connectivity_plus: ^6.0.0
   flutter:
     sdk: flutter
+  plugin_platform_interface: ^2.1.0
   
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0

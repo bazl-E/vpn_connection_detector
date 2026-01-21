@@ -1,66 +1,211 @@
 # VPN Connection Detector
 
-The `vpn_connection_detector` package provides a simple and efficient way to detect VPN connection status in a Dart/Flutter application. It includes a singleton class, `VpnConnectionDetector`, that offers a stream of VPN connection states and a method to check the VPN connection status.
+A Flutter plugin to detect VPN connection status with **native iOS & Android support** and a Dart fallback for desktop platforms.
+
+[![pub package](https://img.shields.io/pub/v/vpn_connection_detector.svg)](https://pub.dev/packages/vpn_connection_detector)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
-- Detect VPN connection status with ease.
-- Detect changes in VPN connectivity and trigger events accordingly.
-- Designed as a singleton for efficient resource management.
+- ✅ **Native iOS detection** using `NEVPNManager` and `NWPathMonitor`
+- ✅ **Native Android detection** using `NetworkCapabilities.TRANSPORT_VPN`
+- ✅ **Dart fallback** for desktop platforms (macOS, Windows, Linux)
+- ✅ **Real-time streaming** of VPN connection status changes
+- ✅ **One-time checks** via static method
+- ✅ **Detailed VPN info** including interface name and protocol
+- ✅ **Singleton pattern** for efficient resource management
+
+## Platform Support
+
+| Platform | Native | Accuracy | Notes |
+|----------|--------|----------|-------|
+| iOS | ✅ | ~95% | Uses NEVPNManager & NWPathMonitor |
+| Android | ✅ | ~95% | Uses NetworkCapabilities API |
+| macOS | ❌ | ~70-80% | Dart fallback (interface name matching) |
+| Windows | ❌ | ~70-80% | Dart fallback |
+| Linux | ❌ | ~70-80% | Dart fallback |
 
 ## Getting Started
 
 ### Installation
 
-Add the `vpn_connection_detector` package to your `pubspec.yaml`:
+Add `vpn_connection_detector` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vpn_connection_detector: ^1.0.7 # Use the latest version
+  vpn_connection_detector: ^2.0.0
 ```
 
-### Usage
-Import the `package` package in your `Dart/Flutter` file:
+### Android Setup
+
+Add the following permission to your `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 ```
+
+### iOS Setup
+
+No additional setup required. The plugin uses system frameworks that are available by default.
+
+## Usage
+
+### Import the package
+
+```dart
 import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 ```
 
-Create a `VpnConnectionDetector` Instance
+### One-time VPN Check
+
+```dart
+// Check if VPN is currently active
+bool isVpnConnected = await VpnConnectionDetector.isVpnActive();
+
+if (isVpnConnected) {
+  print('VPN is connected');
+} else {
+  print('VPN is not connected');
+}
 ```
+
+### Real-time VPN Status Stream
+
+```dart
 final vpnDetector = VpnConnectionDetector();
-```
-### Access the VPN Connection Stream
-```
+
+// Listen to VPN status changes
 vpnDetector.vpnConnectionStream.listen((state) {
-  if (state == VpnConnectionState.connected) {
-    print("VPN connected.");
-    // Handle VPN connected event
-  } else {
-    print("VPN disconnected.");
-    // Handle VPN disconnected event
+  switch (state) {
+    case VpnConnectionState.connected:
+      print('VPN connected');
+      break;
+    case VpnConnectionState.disconnected:
+      print('VPN disconnected');
+      break;
   }
 });
-```
-### Check the VPN Connection Status Manually
-```
-bool isVpnConnected = await VpnConnectionDetector.isVpnActive();
-```
 
-### Dispose of the VpnConnectionDetector Instance
-If using `vpnConnectionStream`, remember to `dispose`. Otherwise, use `VpnConnectionDetector.isVpnActive()` function without concerns.
-```
+// Don't forget to dispose when done
 vpnDetector.dispose();
 ```
-### Example
 
-For a complete example of how to use this package, please refer to the example directory.
+### Get Detailed VPN Information
 
-### Contributions
+```dart
+final info = await VpnConnectionDetector.getVpnInfo();
 
-Contributions are welcome! If you encounter any issues, have suggestions, or want to contribute to the project, please feel free to create issues, submit pull requests, or reach out to us.
+if (info != null && info.isConnected) {
+  print('VPN Connected');
+  print('Interface: ${info.interfaceName}');  // e.g., 'utun3', 'tun0'
+  print('Protocol: ${info.vpnProtocol}');     // e.g., 'WireGuard', 'IKEv2'
+}
+```
 
-### License
+### Access Current Cached State
 
-This package is distributed under the MIT License. See LICENSE for more details.
+```dart
+final vpnDetector = VpnConnectionDetector();
 
-Enjoy detecting your VPN connections with ease using the `vpn_connection_detector` package!
+// Get the last known state (may be null if not yet determined)
+final currentState = vpnDetector.currentState;
+print('Current state: ${currentState?.name ?? "unknown"}');
+```
+
+## API Reference
+
+### VpnConnectionDetector
+
+| Method/Property | Type | Description |
+|----------------|------|-------------|
+| `isVpnActive()` | `static Future<bool>` | One-time check if VPN is active |
+| `getVpnInfo()` | `static Future<VpnInfo?>` | Get detailed VPN information |
+| `vpnConnectionStream` | `Stream<VpnConnectionState>` | Real-time status stream |
+| `currentState` | `VpnConnectionState?` | Last known VPN state |
+| `dispose()` | `void` | Clean up resources |
+
+### VpnConnectionState
+
+```dart
+enum VpnConnectionState {
+  connected,    // VPN is currently connected
+  disconnected, // VPN is currently disconnected
+}
+```
+
+### VpnInfo
+
+```dart
+class VpnInfo {
+  final bool isConnected;       // Whether VPN is connected
+  final String? interfaceName;  // Network interface name (e.g., 'utun3')
+  final String? vpnProtocol;    // Detected VPN protocol (e.g., 'WireGuard')
+}
+```
+
+## Example
+
+See the [example](example/) directory for a complete sample app.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:vpn_connection_detector/vpn_connection_detector.dart';
+
+class VpnStatusWidget extends StatelessWidget {
+  final _vpnDetector = VpnConnectionDetector();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<VpnConnectionState>(
+      stream: _vpnDetector.vpnConnectionStream,
+      builder: (context, snapshot) {
+        final isConnected = snapshot.data == VpnConnectionState.connected;
+        
+        return Icon(
+          isConnected ? Icons.vpn_lock : Icons.vpn_lock_outlined,
+          color: isConnected ? Colors.green : Colors.grey,
+        );
+      },
+    );
+  }
+}
+```
+
+## Migration from v1.x
+
+Version 2.0 introduces native platform support with a cleaner API:
+
+```dart
+// v1.x (still works)
+final isActive = await VpnConnectionDetector.isVpnActive();
+final detector = VpnConnectionDetector();
+detector.vpnConnectionStream.listen((state) { ... });
+
+// v2.0 (new features)
+final info = await VpnConnectionDetector.getVpnInfo();
+print('Protocol: ${info?.vpnProtocol}');
+```
+
+**Breaking changes:**
+- Minimum iOS version: 12.0
+- Minimum Android SDK: 21
+- Removed web platform support (not possible to detect VPN in browsers)
+
+## How It Works
+
+### iOS
+Uses `NEVPNManager` to check VPN configuration status and `NWPathMonitor` to monitor network path changes. Falls back to network interface inspection for third-party VPN apps.
+
+### Android
+Uses `ConnectivityManager` with `NetworkCapabilities.TRANSPORT_VPN` for accurate VPN detection on API 23+.
+
+### Desktop (Fallback)
+Inspects network interface names for common VPN patterns (`tun`, `tap`, `ppp`, `wireguard`, etc.).
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

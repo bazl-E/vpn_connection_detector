@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.0.0] - 2026-01-21
+### Added
+- **Native iOS implementation** using `NEVPNManager` and `NWPathMonitor` for ~95% accuracy
+- **Native Android implementation** using `NetworkCapabilities.TRANSPORT_VPN` API
+- New `getVpnInfo()` method to get detailed VPN information (interface name, protocol)
+- New `VpnInfo` class with `isConnected`, `interfaceName`, and `vpnProtocol` properties
+- New `currentState` getter for accessing cached VPN state
+- Platform interface architecture for better maintainability
+- Dart fallback for desktop platforms (macOS, Windows, Linux)
+- Comprehensive unit tests
+
+### Changed
+- Singleton now properly resets after `dispose()` is called
+- Stream now emits initial state immediately on subscription
+- Improved VPN interface pattern matching with more VPN types (NordVPN, ProtonVPN, Tailscale, etc.)
+- Updated minimum iOS version to 12.0
+- Updated minimum Android SDK to 21
+
+### Removed
+- Web platform support (VPN detection is not possible in browsers)
+
+### Fixed
+- Fixed singleton not being recreatable after dispose
+- Fixed stream not emitting initial state
+
 ## [1.0.11] - 2026-01-21
 ### Changed
 - Bumped package version to `1.0.11`.

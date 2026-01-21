@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.bazle.vpn_connection_detector">
+    
+    <!-- Permission to check network state -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+</manifest>
