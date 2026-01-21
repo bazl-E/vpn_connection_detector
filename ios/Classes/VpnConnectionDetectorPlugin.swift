@@ -2,12 +2,22 @@ import Flutter
 import UIKit
 import NetworkExtension
 import Network
+import SystemConfiguration
 
 public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
     private var vpnStatusObserver: NSObjectProtocol?
     private var pathMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.vpnconnectiondetector.monitor")
+    
+    // Enable debug logging
+    private let debugEnabled = true
+    
+    private func log(_ message: String) {
+        if debugEnabled {
+            print("[VPN_DETECTOR] \(message)")
+        }
+    }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "vpn_connection_detector", binaryMessenger: registrar.messenger())
@@ -21,9 +31,13 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "isVpnActive":
-            result(isVpnConnected())
+            let isActive = isVpnConnected()
+            log("isVpnActive called, result: \(isActive)")
+            result(isActive)
         case "getVpnInfo":
-            result(getVpnInfo())
+            let info = getVpnInfo()
+            log("getVpnInfo called, result: \(info)")
+            result(info)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -32,91 +46,116 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     // MARK: - VPN Detection Methods
     
     private func isVpnConnected() -> Bool {
-        // Method 1: Check NEVPNManager status
-        if checkNEVPNStatus() {
+        log("=== Starting VPN detection ===")
+        
+        // Method 1: Check NEVPNManager status (for system VPNs configured in Settings)
+        let nevpnResult = checkNEVPNStatus()
+        log("Method 1 (NEVPNManager): \(nevpnResult)")
+        if nevpnResult {
             return true
         }
         
-        // Method 2: Check network interfaces
-        if checkNetworkInterfaces() {
+        // Method 2: Check for VPN interfaces in CFNetwork SCOPED dictionary
+        // This is the MOST RELIABLE method for detecting third-party VPN apps
+        let scopedResult = checkScopedVPNInterfaces()
+        log("Method 2 (SCOPED VPN Interfaces): \(scopedResult)")
+        if scopedResult {
             return true
         }
         
-        // Method 3: Check NWPath (iOS 12+)
-        if checkNWPath() {
-            return true
-        }
-        
+        log("=== VPN detection complete: NOT CONNECTED ===")
         return false
     }
     
     private func checkNEVPNStatus() -> Bool {
         let vpnManager = NEVPNManager.shared()
         let status = vpnManager.connection.status
-        return status == .connected || status == .connecting
+        
+        let statusString: String
+        switch status {
+        case .invalid: statusString = "invalid"
+        case .disconnected: statusString = "disconnected"
+        case .connecting: statusString = "connecting"
+        case .connected: statusString = "connected"
+        case .reasserting: statusString = "reasserting"
+        case .disconnecting: statusString = "disconnecting"
+        @unknown default: statusString = "unknown"
+        }
+        
+        log("  NEVPNManager status: \(statusString)")
+        return status == .connected
     }
     
-    private func checkNetworkInterfaces() -> Bool {
-        guard let cfAddresses = CFCopyIfAddresses()?.takeRetainedValue() else {
+    /// The most reliable VPN detection method for iOS
+    /// When a VPN is active, it appears in the __SCOPED__ section of CFNetworkCopySystemProxySettings
+    /// The key difference between VPN and system utun interfaces is:
+    /// - System utun (iCloud Relay, Push, etc.) do NOT appear in __SCOPED__
+    /// - VPN utun interfaces DO appear in __SCOPED__ because they handle routing
+    private func checkScopedVPNInterfaces() -> Bool {
+        log("  Checking SCOPED interfaces for VPN...")
+        
+        guard let cfDict = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else {
+            log("  Could not get proxy settings")
             return false
         }
         
-        let interfaces = cfAddresses as NSArray
+        // Log all top-level keys for debugging
+        let topLevelKeys = cfDict.keys.sorted().joined(separator: ", ")
+        log("  CFNetwork top-level keys: \(topLevelKeys)")
         
-        for interface in interfaces {
-            guard let interfaceDict = interface as? [String: Any],
-                  let interfaceName = interfaceDict["ifname"] as? String else {
+        // Get the __SCOPED__ dictionary - this contains active network interfaces
+        guard let scoped = cfDict["__SCOPED__"] as? [String: Any] else {
+            log("  No __SCOPED__ dictionary found")
+            return false
+        }
+        
+        let scopedInterfaces = scoped.keys.sorted().joined(separator: ", ")
+        log("  SCOPED interfaces: \(scopedInterfaces)")
+        
+        // Check each interface in SCOPED
+        for (interface, config) in scoped {
+            let interfaceLower = interface.lowercased()
+            
+            // Log the interface configuration
+            if let configDict = config as? [String: Any] {
+                let configKeys = configDict.keys.sorted().joined(separator: ", ")
+                log("    \(interface): \(configKeys)")
+            }
+            
+            // Skip known non-VPN interfaces
+            // These are standard iOS network interfaces
+            if interfaceLower.hasPrefix("en") ||        // WiFi/Ethernet (en0, en1, etc.)
+               interfaceLower.hasPrefix("pdp_ip") ||    // Cellular data
+               interfaceLower.hasPrefix("bridge") ||    // Bridge interfaces
+               interfaceLower.hasPrefix("ap") ||        // Access point
+               interfaceLower.hasPrefix("awdl") ||      // Apple Wireless Direct Link
+               interfaceLower.hasPrefix("llw") ||       // Low Latency WLAN
+               interfaceLower.hasPrefix("lo") {         // Loopback
+                log("    Skipping known non-VPN interface: \(interface)")
                 continue
             }
             
-            let lowercaseName = interfaceName.lowercased()
+            // VPN interfaces that appear in SCOPED:
+            // - utun* (OpenVPN, WireGuard, IPSec tunnel, etc.)
+            // - ipsec* (IPSec)
+            // - tun* (not utun - generic TUN)
+            // - tap* (TAP interfaces)
+            // - ppp* (PPP/L2TP)
             
-            // Common VPN interface patterns
-            let vpnPatterns = ["tun", "tap", "ppp", "ipsec", "utun", "vpn"]
-            
-            // Skip interfaces that are always present on iOS (false positives)
-            let ignorePatterns = ["utun0", "utun1", "utun2"]
-            
-            if ignorePatterns.contains(lowercaseName) {
-                continue
-            }
-            
-            for pattern in vpnPatterns {
-                if lowercaseName.contains(pattern) {
-                    return true
-                }
+            // If a utun/ipsec/tun/tap/ppp interface appears in SCOPED, it's a VPN
+            // System utun interfaces (iCloud Relay, Push) do NOT appear in SCOPED
+            if interfaceLower.hasPrefix("utun") ||
+               interfaceLower.hasPrefix("ipsec") ||
+               (interfaceLower.hasPrefix("tun") && !interfaceLower.hasPrefix("utun")) ||
+               interfaceLower.hasPrefix("tap") ||
+               interfaceLower.hasPrefix("ppp") {
+                log("  ✓ Found VPN interface in SCOPED: \(interface)")
+                return true
             }
         }
         
+        log("  No VPN interfaces found in SCOPED")
         return false
-    }
-    
-    private func checkNWPath() -> Bool {
-        var isVPN = false
-        let semaphore = DispatchSemaphore(value: 0)
-        
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { path in
-            // Check if the path uses a VPN interface
-            isVPN = path.usesInterfaceType(.other) && path.status == .satisfied
-            
-            // Additional check: if we have both WiFi/Cellular and "other", likely VPN
-            if path.usesInterfaceType(.wifi) || path.usesInterfaceType(.cellular) {
-                if path.usesInterfaceType(.other) {
-                    isVPN = true
-                }
-            }
-            
-            monitor.cancel()
-            semaphore.signal()
-        }
-        
-        monitor.start(queue: monitorQueue)
-        
-        // Wait with timeout
-        _ = semaphore.wait(timeout: .now() + 1.0)
-        
-        return isVPN
     }
     
     private func getVpnInfo() -> [String: Any] {
@@ -126,48 +165,68 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
         if isConnected {
             // Try to get more info from NEVPNManager
             let vpnManager = NEVPNManager.shared()
-            if let proto = vpnManager.protocolConfiguration {
-                if proto is NEVPNProtocolIKEv2 {
-                    info["vpnProtocol"] = "IKEv2"
-                } else if proto is NEVPNProtocolIPSec {
-                    info["vpnProtocol"] = "IPSec"
+            if vpnManager.connection.status == .connected {
+                if let proto = vpnManager.protocolConfiguration {
+                    if proto is NEVPNProtocolIKEv2 {
+                        info["vpnProtocol"] = "IKEv2"
+                    } else if proto is NEVPNProtocolIPSec {
+                        info["vpnProtocol"] = "IPSec"
+                    }
                 }
             }
             
-            // Try to get interface name
-            if let interfaceName = findVpnInterface() {
+            // Try to get interface name from SCOPED
+            if let interfaceName = findActiveVpnInterface() {
                 info["interfaceName"] = interfaceName
+                
+                // Guess protocol from interface name
+                let lower = interfaceName.lowercased()
+                if info["vpnProtocol"] == nil {
+                    if lower.hasPrefix("utun") {
+                        info["vpnProtocol"] = "Tunnel"
+                    } else if lower.hasPrefix("ppp") {
+                        info["vpnProtocol"] = "PPP"
+                    } else if lower.hasPrefix("tun") {
+                        info["vpnProtocol"] = "TUN"
+                    } else if lower.hasPrefix("tap") {
+                        info["vpnProtocol"] = "TAP"
+                    } else if lower.hasPrefix("ipsec") {
+                        info["vpnProtocol"] = "IPSec"
+                    }
+                }
             }
         }
         
         return info
     }
     
-    private func findVpnInterface() -> String? {
-        guard let cfAddresses = CFCopyIfAddresses()?.takeRetainedValue() else {
+    private func findActiveVpnInterface() -> String? {
+        guard let cfDict = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any],
+              let scoped = cfDict["__SCOPED__"] as? [String: Any] else {
             return nil
         }
         
-        let interfaces = cfAddresses as NSArray
-        
-        for interface in interfaces {
-            guard let interfaceDict = interface as? [String: Any],
-                  let interfaceName = interfaceDict["ifname"] as? String else {
+        for interface in scoped.keys {
+            let interfaceLower = interface.lowercased()
+            
+            // Skip known non-VPN interfaces
+            if interfaceLower.hasPrefix("en") ||
+               interfaceLower.hasPrefix("pdp_ip") ||
+               interfaceLower.hasPrefix("bridge") ||
+               interfaceLower.hasPrefix("ap") ||
+               interfaceLower.hasPrefix("awdl") ||
+               interfaceLower.hasPrefix("llw") ||
+               interfaceLower.hasPrefix("lo") {
                 continue
             }
             
-            let lowercaseName = interfaceName.lowercased()
-            let vpnPatterns = ["tun", "tap", "ppp", "ipsec", "utun", "vpn"]
-            let ignorePatterns = ["utun0", "utun1", "utun2"]
-            
-            if ignorePatterns.contains(lowercaseName) {
-                continue
-            }
-            
-            for pattern in vpnPatterns {
-                if lowercaseName.contains(pattern) {
-                    return interfaceName
-                }
+            // Return VPN interface names
+            if interfaceLower.hasPrefix("utun") ||
+               interfaceLower.hasPrefix("ipsec") ||
+               (interfaceLower.hasPrefix("tun") && !interfaceLower.hasPrefix("utun")) ||
+               interfaceLower.hasPrefix("tap") ||
+               interfaceLower.hasPrefix("ppp") {
+                return interface
             }
         }
         
@@ -204,7 +263,7 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
             self?.notifyStatusChange()
         }
         
-        // Monitor network path changes
+        // Monitor network path changes (this catches VPN connect/disconnect events)
         pathMonitor = NWPathMonitor()
         pathMonitor?.pathUpdateHandler = { [weak self] _ in
             DispatchQueue.main.async {
@@ -225,35 +284,8 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     private func notifyStatusChange() {
-        eventSink?(isVpnConnected())
+        let isConnected = isVpnConnected()
+        log("Status change notification, VPN connected: \(isConnected)")
+        eventSink?(isConnected)
     }
-}
-
-// Helper function to get network interfaces
-private func CFCopyIfAddresses() -> Unmanaged<CFArray>? {
-    var addrs: UnsafeMutablePointer<ifaddrs>?
-    
-    guard getifaddrs(&addrs) == 0, let firstAddr = addrs else {
-        return nil
-    }
-    
-    var interfaces: [[String: Any]] = []
-    var ptr = firstAddr
-    
-    while true {
-        let interface = ptr.pointee
-        let name = String(cString: interface.ifa_name)
-        
-        interfaces.append(["ifname": name])
-        
-        if let next = interface.ifa_next {
-            ptr = next
-        } else {
-            break
-        }
-    }
-    
-    freeifaddrs(addrs)
-    
-    return Unmanaged.passRetained(interfaces as CFArray)
 }
