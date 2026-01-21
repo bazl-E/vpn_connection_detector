@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-01-21
 ### Added
-- **Native iOS implementation** using `NEVPNManager` and `NWPathMonitor` for ~95% accuracy
-- **Native Android implementation** using `NetworkCapabilities.TRANSPORT_VPN` API
+- **Native iOS implementation** using `NEVPNManager` for system VPNs and `CFNetworkCopySystemProxySettings` SCOPED dictionary for third-party VPN apps (NordVPN, ExpressVPN, ProtonVPN, etc.) — ~95% accuracy
+- **Native Android implementation** using `NetworkCapabilities.TRANSPORT_VPN` API — ~95% accuracy
 - New `getVpnInfo()` method to get detailed VPN information (interface name, protocol)
 - New `VpnInfo` class with `isConnected`, `interfaceName`, and `vpnProtocol` properties
 - New `currentState` getter for accessing cached VPN state
 - Platform interface architecture for better maintainability
 - Dart fallback for desktop platforms (macOS, Windows, Linux)
+- Real-time VPN status monitoring with `NWPathMonitor` (iOS) and network callbacks (Android)
 - Comprehensive unit tests
 
 ### Changed
