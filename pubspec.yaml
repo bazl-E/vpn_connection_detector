@@ -26,12 +26,12 @@ flutter:
         pluginClass: VpnConnectionDetectorPlugin
 
 dependencies:
-  connectivity_plus: ^6.0.0
+  connectivity_plus: ^7.0.0
   flutter:
     sdk: flutter
-  plugin_platform_interface: ^2.1.0
+  plugin_platform_interface: ^2.1.8
   
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
