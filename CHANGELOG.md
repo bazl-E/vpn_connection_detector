@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
-## [2.0.0] - 2026-01-21
+## [2.0.1] - 2026-01-21
 ### Added
 - **Native iOS implementation** using `NEVPNManager` for system VPNs and `CFNetworkCopySystemProxySettings` SCOPED dictionary for third-party VPN apps (NordVPN, ExpressVPN, ProtonVPN, etc.) — ~95% accuracy
 - **Native Android implementation** using `NetworkCapabilities.TRANSPORT_VPN` API — ~95% accuracy

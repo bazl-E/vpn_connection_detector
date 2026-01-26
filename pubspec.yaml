@@ -1,6 +1,6 @@
 name: vpn_connection_detector
 description: VPN connection detection for Flutter with native iOS & Android support. Includes real-time status stream & one-time checks.
-version: 2.0.0
+version: 2.0.1
 homepage: https://github.com/bazl-E/vpn_connection_detector
 repository: https://github.com/bazl-E/vpn_connection_detector
 issue_tracker: https://github.com/bazl-E/vpn_connection_detector/issues

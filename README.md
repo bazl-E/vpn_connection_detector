@@ -43,7 +43,7 @@ Add `vpn_connection_detector` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vpn_connection_detector: ^2.0.0
+  vpn_connection_detector: ^2.0.1
 ```
 
 ### Android Setup
