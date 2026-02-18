@@ -1,12 +1,10 @@
 import Flutter
 import UIKit
-import NetworkExtension
 import Network
 import SystemConfiguration
 
 public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
-    private var vpnStatusObserver: NSObjectProtocol?
     private var pathMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.vpnconnectiondetector.monitor")
     
@@ -48,42 +46,18 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     private func isVpnConnected() -> Bool {
         log("=== Starting VPN detection ===")
         
-        // Method 1: Check NEVPNManager status (for system VPNs configured in Settings)
-        let nevpnResult = checkNEVPNStatus()
-        log("Method 1 (NEVPNManager): \(nevpnResult)")
-        if nevpnResult {
-            return true
-        }
-        
-        // Method 2: Check for VPN interfaces in CFNetwork SCOPED dictionary
-        // This is the MOST RELIABLE method for detecting third-party VPN apps
+        // Check for VPN interfaces in CFNetwork SCOPED dictionary
+        // This is the MOST RELIABLE method for detecting both system VPNs
+        // and third-party VPN apps (NordVPN, ExpressVPN, ProtonVPN, etc.)
+        // Does NOT require NetworkExtension entitlement.
         let scopedResult = checkScopedVPNInterfaces()
-        log("Method 2 (SCOPED VPN Interfaces): \(scopedResult)")
-        if scopedResult {
-            return true
+        log("SCOPED VPN Interfaces: \(scopedResult)")
+        
+        if !scopedResult {
+            log("=== VPN detection complete: NOT CONNECTED ===")
         }
         
-        log("=== VPN detection complete: NOT CONNECTED ===")
-        return false
-    }
-    
-    private func checkNEVPNStatus() -> Bool {
-        let vpnManager = NEVPNManager.shared()
-        let status = vpnManager.connection.status
-        
-        let statusString: String
-        switch status {
-        case .invalid: statusString = "invalid"
-        case .disconnected: statusString = "disconnected"
-        case .connecting: statusString = "connecting"
-        case .connected: statusString = "connected"
-        case .reasserting: statusString = "reasserting"
-        case .disconnecting: statusString = "disconnecting"
-        @unknown default: statusString = "unknown"
-        }
-        
-        log("  NEVPNManager status: \(statusString)")
-        return status == .connected
+        return scopedResult
     }
     
     /// The most reliable VPN detection method for iOS
@@ -163,36 +137,22 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
         var info: [String: Any] = ["isConnected": isConnected]
         
         if isConnected {
-            // Try to get more info from NEVPNManager
-            let vpnManager = NEVPNManager.shared()
-            if vpnManager.connection.status == .connected {
-                if let proto = vpnManager.protocolConfiguration {
-                    if proto is NEVPNProtocolIKEv2 {
-                        info["vpnProtocol"] = "IKEv2"
-                    } else if proto is NEVPNProtocolIPSec {
-                        info["vpnProtocol"] = "IPSec"
-                    }
-                }
-            }
-            
-            // Try to get interface name from SCOPED
+            // Get interface name from SCOPED
             if let interfaceName = findActiveVpnInterface() {
                 info["interfaceName"] = interfaceName
                 
                 // Guess protocol from interface name
                 let lower = interfaceName.lowercased()
-                if info["vpnProtocol"] == nil {
-                    if lower.hasPrefix("utun") {
-                        info["vpnProtocol"] = "Tunnel"
-                    } else if lower.hasPrefix("ppp") {
-                        info["vpnProtocol"] = "PPP"
-                    } else if lower.hasPrefix("tun") {
-                        info["vpnProtocol"] = "TUN"
-                    } else if lower.hasPrefix("tap") {
-                        info["vpnProtocol"] = "TAP"
-                    } else if lower.hasPrefix("ipsec") {
-                        info["vpnProtocol"] = "IPSec"
-                    }
+                if lower.hasPrefix("utun") {
+                    info["vpnProtocol"] = "Tunnel"
+                } else if lower.hasPrefix("ppp") {
+                    info["vpnProtocol"] = "PPP"
+                } else if lower.hasPrefix("tun") {
+                    info["vpnProtocol"] = "TUN"
+                } else if lower.hasPrefix("tap") {
+                    info["vpnProtocol"] = "TAP"
+                } else if lower.hasPrefix("ipsec") {
+                    info["vpnProtocol"] = "IPSec"
                 }
             }
         }
@@ -254,15 +214,6 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     private func startMonitoring() {
-        // Monitor NEVPNManager status changes
-        vpnStatusObserver = NotificationCenter.default.addObserver(
-            forName: .NEVPNStatusDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.notifyStatusChange()
-        }
-        
         // Monitor network path changes (this catches VPN connect/disconnect events)
         pathMonitor = NWPathMonitor()
         pathMonitor?.pathUpdateHandler = { [weak self] _ in
@@ -274,11 +225,6 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     private func stopMonitoring() {
-        if let observer = vpnStatusObserver {
-            NotificationCenter.default.removeObserver(observer)
-            vpnStatusObserver = nil
-        }
-        
         pathMonitor?.cancel()
         pathMonitor = nil
     }

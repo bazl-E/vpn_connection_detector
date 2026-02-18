@@ -17,19 +17,20 @@ Most VPN detection solutions only check for system-configured VPNs, missing the 
 
 ## Features
 
-- ✅ **Native iOS detection** using `NEVPNManager` and `NWPathMonitor`
+- ✅ **Native iOS detection** using `CFNetworkCopySystemProxySettings` and `NWPathMonitor`
 - ✅ **Native Android detection** using `NetworkCapabilities.TRANSPORT_VPN`
 - ✅ **Dart fallback** for desktop platforms (macOS, Windows, Linux)
 - ✅ **Real-time streaming** of VPN connection status changes
 - ✅ **One-time checks** via static method
 - ✅ **Detailed VPN info** including interface name and protocol
 - ✅ **Singleton pattern** for efficient resource management
+- ✅ **App Store safe** — no private APIs or restricted entitlements required
 
 ## Platform Support
 
 | Platform | Native | Accuracy | Notes |
 |----------|--------|----------|-------|
-| iOS | ✅ | ~95% | Uses NEVPNManager & NWPathMonitor |
+| iOS | ✅ | ~95% | Uses CFNetworkCopySystemProxySettings & NWPathMonitor |
 | Android | ✅ | ~95% | Uses NetworkCapabilities API |
 | macOS | ❌ | ~70-80% | Dart fallback (interface name matching) |
 | Windows | ❌ | ~70-80% | Dart fallback |
@@ -204,9 +205,9 @@ print('Protocol: ${info?.vpnProtocol}');
 ## How It Works
 
 ### iOS
-1. **System VPNs**: Uses `NEVPNManager` to check for active system-configured VPN profiles (IKEv2, IPSec, etc.)
-2. **Third-party VPN apps**: Uses `CFNetworkCopySystemProxySettings` to inspect the `__SCOPED__` dictionary, which only contains active VPN network interfaces — this reliably detects apps like NordVPN, ExpressVPN, ProtonVPN, Surfshark, etc.
-3. **Real-time monitoring**: Uses `NWPathMonitor` to detect network changes and re-evaluate VPN status
+1. **VPN detection**: Uses `CFNetworkCopySystemProxySettings` to inspect the `__SCOPED__` dictionary, which only contains active VPN network interfaces — this reliably detects both system-configured VPNs and third-party apps like NordVPN, ExpressVPN, ProtonVPN, Surfshark, etc.
+2. **Real-time monitoring**: Uses `NWPathMonitor` to detect network changes and re-evaluate VPN status
+3. **App Store safe**: Does not use `NEVPNManager` or any APIs that require the Network Extension entitlement
 
 ### Android
 Uses `ConnectivityManager` with `NetworkCapabilities.TRANSPORT_VPN` for accurate VPN detection on API 23+. This detects all VPN connections regardless of the VPN app used.

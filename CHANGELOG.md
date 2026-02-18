@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
-## [2.0.1] - 2026-01-21
+## [2.0.2] - 2026-02-18
+### Fixed
+- **iOS App Store rejection fix**: Removed `NEVPNManager` / `NetworkExtension` framework usage which requires the Network Extension entitlement (Apple Guideline 2.5.1)
+- iOS VPN detection now relies entirely on `CFNetworkCopySystemProxySettings` SCOPED dictionary approach, which is App Store safe and detects both system VPNs and third-party VPN apps without any special entitlements
+
+## [2.0.0] - 2026-01-21
 ### Added
 - **Native iOS implementation** using `NEVPNManager` for system VPNs and `CFNetworkCopySystemProxySettings` SCOPED dictionary for third-party VPN apps (NordVPN, ExpressVPN, ProtonVPN, etc.) — ~95% accuracy
 - **Native Android implementation** using `NetworkCapabilities.TRANSPORT_VPN` API — ~95% accuracy
