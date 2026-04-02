@@ -31,10 +31,39 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final _vpnDetector = VpnConnectionDetector();
   VpnInfo? _vpnInfo;
+  List<VpnInfo> _allVpnInfo = [];
   bool _isChecking = false;
+  bool _isCheckingAll = false;
+  String _connectionEventLog = '';
+
+  // Subscriptions for event callbacks - initialized in initState
+  dynamic _connectedSub;
+  dynamic _disconnectedSub;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Subscribe to VPN connection events
+    _connectedSub = _vpnDetector.onVpnConnected(() {
+      setState(() {
+        _connectionEventLog =
+            '✅ VPN Connected at ${DateTime.now().toString().substring(11, 19)}';
+      });
+    });
+
+    _disconnectedSub = _vpnDetector.onVpnDisconnected(() {
+      setState(() {
+        _connectionEventLog =
+            '❌ VPN Disconnected at ${DateTime.now().toString().substring(11, 19)}';
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _connectedSub?.cancel();
+    _disconnectedSub?.cancel();
     _vpnDetector.dispose();
     super.dispose();
   }
@@ -48,6 +77,27 @@ class _MyHomePageState extends State<MyHomePage> {
       _vpnInfo = info;
       _isChecking = false;
     });
+  }
+
+  Future<void> _checkAllVpnInfo() async {
+    setState(() => _isCheckingAll = true);
+
+    final allInfo = await VpnConnectionDetector.getAllVpnInfo();
+
+    setState(() {
+      _allVpnInfo = allInfo;
+      _isCheckingAll = false;
+    });
+  }
+
+  String _formatDuration(Duration duration) {
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes.remainder(60)}m';
+    } else if (duration.inMinutes > 0) {
+      return '${duration.inMinutes}m ${duration.inSeconds.remainder(60)}s';
+    } else {
+      return '${duration.inSeconds}s';
+    }
   }
 
   @override
@@ -153,6 +203,109 @@ class _MyHomePageState extends State<MyHomePage> {
                 textAlign: TextAlign.center,
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // Connection Duration (connectedSince)
+            _buildCard(
+              title: 'Connection Duration',
+              icon: Icons.timer_outlined,
+              child: Builder(
+                builder: (context) {
+                  final connectedSince = _vpnDetector.connectedSince;
+                  if (connectedSince == null) {
+                    return const Text(
+                      'No active VPN connection',
+                      style: TextStyle(color: Colors.grey),
+                    );
+                  }
+                  final duration = DateTime.now().difference(connectedSince);
+                  return Column(
+                    children: [
+                      Text(
+                        'Connected for: ${_formatDuration(duration)}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Since: ${connectedSince.toString().substring(0, 19)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Event Callbacks Log
+            _buildCard(
+              title: 'Connection Event Callbacks',
+              icon: Icons.notifications_active_outlined,
+              child: Column(
+                children: [
+                  Text(
+                    _connectionEventLog.isEmpty
+                        ? 'Waiting for VPN events...'
+                        : _connectionEventLog,
+                    style: TextStyle(
+                      color: _connectionEventLog.contains('✅')
+                          ? Colors.green
+                          : _connectionEventLog.contains('❌')
+                              ? Colors.red
+                              : Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Using onVpnConnected() & onVpnDisconnected()',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // All VPN Connections (getAllVpnInfo)
+            _buildCard(
+              title: 'All Active VPN Connections',
+              icon: Icons.list_alt,
+              child: Column(
+                children: [
+                  if (_isCheckingAll)
+                    const CircularProgressIndicator()
+                  else if (_allVpnInfo.isNotEmpty)
+                    ..._allVpnInfo.map((vpn) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: _buildVpnInfoDetails(vpn),
+                        ))
+                  else
+                    const Text(
+                      'No active VPN connections found',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _isCheckingAll ? null : _checkAllVpnInfo,
+                    icon: const Icon(Icons.search),
+                    label: const Text('Get All VPNs'),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Using getAllVpnInfo()',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -201,8 +354,8 @@ class _MyHomePageState extends State<MyHomePage> {
           fontWeight: FontWeight.bold,
         ),
       ),
-      backgroundColor: color.withOpacity(0.1),
-      side: BorderSide(color: color.withOpacity(0.3)),
+      backgroundColor: color.withValues(alpha: 0.1),
+      side: BorderSide(color: color.withValues(alpha: 0.3)),
     );
   }
 
@@ -235,7 +388,7 @@ class _MyHomePageState extends State<MyHomePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(

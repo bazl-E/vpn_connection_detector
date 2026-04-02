@@ -23,7 +23,8 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
     private lateinit var context: Context
     
     private var eventSink: EventChannel.EventSink? = null
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var vpnNetworkCallback: ConnectivityManager.NetworkCallback? = null
+    private var defaultNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private var connectivityManager: ConnectivityManager? = null
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -45,6 +46,9 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
             }
             "getVpnInfo" -> {
                 result.success(getVpnInfo())
+            }
+            "getAllVpnInfo" -> {
+                result.success(getAllVpnInfo())
             }
             else -> {
                 result.notImplemented()
@@ -144,6 +148,35 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
         }
     }
 
+    private fun getAllVpnInfo(): List<Map<String, Any?>> {
+        val vpnList = mutableListOf<Map<String, Any?>>()
+        
+        try {
+            val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
+            val vpnPatterns = listOf("tun", "tap", "ppp", "pptp", "l2tp", "ipsec", "vpn", "wireguard", "wg")
+            
+            for (networkInterface in interfaces) {
+                val name = networkInterface.name.lowercase()
+                
+                for (pattern in vpnPatterns) {
+                    if (name.contains(pattern) && networkInterface.isUp) {
+                        val info = mutableMapOf<String, Any?>(
+                            "isConnected" to true,
+                            "interfaceName" to networkInterface.name,
+                            "vpnProtocol" to guessProtocol(name)
+                        )
+                        vpnList.add(info)
+                        break // avoid adding same interface twice for multiple pattern matches
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // If we can't list interfaces, return empty list
+        }
+        
+        return vpnList
+    }
+
     // MARK: - EventChannel.StreamHandler
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -165,7 +198,8 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val cm = connectivityManager ?: return
             
-            networkCallback = object : ConnectivityManager.NetworkCallback() {
+            // Monitor VPN-specific network events (connect/capabilities change)
+            vpnNetworkCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     notifyStatusChange()
                 }
@@ -187,13 +221,13 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
                 .build()
 
             try {
-                cm.registerNetworkCallback(request, networkCallback!!)
+                cm.registerNetworkCallback(request, vpnNetworkCallback!!)
             } catch (e: Exception) {
                 // Permission might be missing
             }
 
-            // Also register for default network changes
-            val defaultCallback = object : ConnectivityManager.NetworkCallback() {
+            // Monitor default network changes (catches VPN disconnect -> WiFi/cellular switch)
+            defaultNetworkCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     notifyStatusChange()
                 }
@@ -204,7 +238,7 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
             }
 
             try {
-                cm.registerDefaultNetworkCallback(defaultCallback)
+                cm.registerDefaultNetworkCallback(defaultNetworkCallback!!)
             } catch (e: Exception) {
                 // Ignore
             }
@@ -212,13 +246,26 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
     }
 
     private fun stopMonitoring() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && networkCallback != null) {
-            try {
-                connectivityManager?.unregisterNetworkCallback(networkCallback!!)
-            } catch (e: Exception) {
-                // Ignore
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val cm = connectivityManager ?: return
+            
+            vpnNetworkCallback?.let {
+                try {
+                    cm.unregisterNetworkCallback(it)
+                } catch (e: Exception) {
+                    // Ignore
+                }
             }
-            networkCallback = null
+            vpnNetworkCallback = null
+            
+            defaultNetworkCallback?.let {
+                try {
+                    cm.unregisterNetworkCallback(it)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+            defaultNetworkCallback = null
         }
     }
 

@@ -17,17 +17,15 @@ class MethodChannelVpnConnectionDetector extends VpnConnectionDetectorPlatform {
   @visibleForTesting
   final eventChannel = const EventChannel('vpn_connection_detector/status');
 
-  /// Stream controller for VPN status
-  StreamController<bool>? _statusController;
-
-  /// Cached stream
-  Stream<bool>? _statusStream;
+  /// Cached broadcast stream from the event channel
+  Stream<bool>? _eventChannelStream;
 
   /// Dart fallback implementation for unsupported platforms
   final _dartFallback = DartVpnConnectionDetector();
 
   /// Whether to use native implementation
-  bool get _useNative => !kIsWeb && (Platform.isIOS || Platform.isAndroid);
+  bool get _useNative =>
+      !kIsWeb && (Platform.isIOS || Platform.isAndroid || Platform.isMacOS);
 
   @override
   Future<bool> isVpnActive() async {
@@ -54,42 +52,23 @@ class MethodChannelVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       return _dartFallback.vpnStatusStream;
     }
 
-    if (_statusStream != null) {
-      return _statusStream!;
-    }
+    // Cache the broadcast stream so multiple listeners can subscribe/unsubscribe
+    // without breaking the underlying event channel connection.
+    _eventChannelStream ??=
+        eventChannel.receiveBroadcastStream().map<bool>((dynamic event) {
+      if (event is bool) {
+        return event;
+      } else if (event is Map) {
+        return event['isConnected'] as bool? ?? false;
+      }
+      return false;
+    }).handleError((dynamic error) {
+      debugPrint('VpnConnectionDetector: Stream error: $error');
+      // Return false (disconnected) on error - stream will continue
+      return false;
+    }).asBroadcastStream();
 
-    _statusController = StreamController<bool>.broadcast(
-      onListen: _startListening,
-      onCancel: _stopListening,
-    );
-
-    _statusStream = _statusController!.stream;
-    return _statusStream!;
-  }
-
-  void _startListening() {
-    eventChannel.receiveBroadcastStream().listen(
-      (dynamic event) {
-        if (event is bool) {
-          _statusController?.add(event);
-        } else if (event is Map) {
-          _statusController?.add(event['isConnected'] as bool? ?? false);
-        }
-      },
-      onError: (dynamic error) {
-        debugPrint('VpnConnectionDetector: Stream error: $error');
-        // On error, switch to Dart fallback
-        _dartFallback.vpnStatusStream.listen((status) {
-          _statusController?.add(status);
-        });
-      },
-    );
-  }
-
-  void _stopListening() {
-    _statusController?.close();
-    _statusController = null;
-    _statusStream = null;
+    return _eventChannelStream!;
   }
 
   @override
@@ -108,6 +87,26 @@ class MethodChannelVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       return _dartFallback.getVpnInfo();
     } on MissingPluginException {
       return _dartFallback.getVpnInfo();
+    }
+  }
+
+  @override
+  Future<List<VpnInfo>> getAllVpnInfo() async {
+    if (!_useNative) {
+      return _dartFallback.getAllVpnInfo();
+    }
+
+    try {
+      final result = await methodChannel.invokeListMethod<Map>('getAllVpnInfo');
+      if (result == null) return [];
+      return result
+          .map((item) => VpnInfo.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    } on PlatformException catch (e) {
+      debugPrint('VpnConnectionDetector: getAllVpnInfo failed: ${e.message}');
+      return _dartFallback.getAllVpnInfo();
+    } on MissingPluginException {
+      return _dartFallback.getAllVpnInfo();
     }
   }
 }

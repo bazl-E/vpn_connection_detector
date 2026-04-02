@@ -168,6 +168,41 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
     }
   }
 
+  @override
+  Future<List<VpnInfo>> getAllVpnInfo() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        includeLinkLocal: false,
+        type: InternetAddressType.any,
+      );
+
+      final isIos = Platform.isIOS;
+      final vpnList = <VpnInfo>[];
+
+      for (final interface in interfaces) {
+        final name = interface.name.toLowerCase();
+
+        for (final pattern in _vpnInterfacePatterns) {
+          if (name.contains(pattern)) {
+            if (isIos && _shouldIgnoreOnIos(name)) {
+              continue;
+            }
+            vpnList.add(VpnInfo(
+              isConnected: true,
+              interfaceName: interface.name,
+              vpnProtocol: _guessProtocol(name),
+            ));
+            break; // avoid adding same interface twice for multiple pattern matches
+          }
+        }
+      }
+      return vpnList;
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// Try to guess the VPN protocol from the interface name
   String? _guessProtocol(String interfaceName) {
     final name = interfaceName.toLowerCase();

@@ -19,8 +19,8 @@ enum VpnConnectionState {
 /// and real-time streaming of connection status changes.
 ///
 /// This is a singleton class that manages VPN detection across platforms.
-/// On iOS and Android, it uses native platform APIs for accurate detection.
-/// On other platforms (macOS, Windows, Linux), it falls back to a Dart
+/// On iOS, Android, and macOS, it uses native platform APIs for accurate detection.
+/// On other platforms (Windows, Linux), it falls back to a Dart
 /// implementation that checks network interface names.
 ///
 /// Example usage:
@@ -49,6 +49,9 @@ class VpnConnectionDetector {
     _initialize();
   }
 
+  /// Whether initialization has completed
+  bool _initialized = false;
+
   static VpnConnectionDetector? _instance;
 
   final StreamController<VpnConnectionState> _stateController =
@@ -57,6 +60,9 @@ class VpnConnectionDetector {
   StreamSubscription<bool>? _platformSubscription;
 
   VpnConnectionState? _lastState;
+
+  /// Timestamp of when the current VPN connection was first detected.
+  DateTime? _connectedSince;
 
   void _initialize() {
     // Listen to platform stream and convert to VpnConnectionState
@@ -67,8 +73,16 @@ class VpnConnectionDetector {
             ? VpnConnectionState.connected
             : VpnConnectionState.disconnected;
 
+        // Mark as initialized when first event received from platform
+        _initialized = true;
+
         // Only emit if state changed
         if (_lastState != state) {
+          if (state == VpnConnectionState.connected) {
+            _connectedSince = DateTime.now();
+          } else {
+            _connectedSince = null;
+          }
           _lastState = state;
           _stateController.add(state);
         }
@@ -76,6 +90,7 @@ class VpnConnectionDetector {
       onError: (error) {
         // On error, emit disconnected state
         if (_lastState != VpnConnectionState.disconnected) {
+          _connectedSince = null;
           _lastState = VpnConnectionState.disconnected;
           _stateController.add(VpnConnectionState.disconnected);
         }
@@ -91,8 +106,16 @@ class VpnConnectionDetector {
     final state = isActive
         ? VpnConnectionState.connected
         : VpnConnectionState.disconnected;
-    _lastState = state;
-    _stateController.add(state);
+
+    // Only emit if platform stream hasn't already set the state
+    if (!_initialized) {
+      _initialized = true;
+      if (state == VpnConnectionState.connected) {
+        _connectedSince = DateTime.now();
+      }
+      _lastState = state;
+      _stateController.add(state);
+    }
   }
 
   /// Returns `true` if a VPN connection is currently active.
@@ -133,6 +156,25 @@ class VpnConnectionDetector {
     return VpnConnectionDetectorPlatform.instance.getVpnInfo();
   }
 
+  /// Returns a list of all active VPN connections.
+  ///
+  /// Useful when a device may have multiple simultaneous VPN connections
+  /// (e.g., a corporate VPN and a personal VPN). Each [VpnInfo] object
+  /// contains details about one active VPN interface.
+  ///
+  /// Returns an empty list if no VPNs are connected.
+  ///
+  /// Example:
+  /// ```dart
+  /// final vpns = await VpnConnectionDetector.getAllVpnInfo();
+  /// for (final vpn in vpns) {
+  ///   print('${vpn.interfaceName}: ${vpn.vpnProtocol}');
+  /// }
+  /// ```
+  static Future<List<VpnInfo>> getAllVpnInfo() {
+    return VpnConnectionDetectorPlatform.instance.getAllVpnInfo();
+  }
+
   /// A stream of [VpnConnectionState] that emits whenever the VPN
   /// connection status changes.
   ///
@@ -164,6 +206,14 @@ class VpnConnectionDetector {
   /// Use [isVpnActive] for a reliable one-time check.
   VpnConnectionState? get currentState => _lastState;
 
+  /// When the current VPN connection was first detected.
+  ///
+  /// Returns `null` if no VPN is connected or the state hasn't been
+  /// determined yet. This records the time when the detector first
+  /// observed the VPN as connected, not necessarily the actual connection
+  /// start time.
+  DateTime? get connectedSince => _connectedSince;
+
   /// Disposes of the [VpnConnectionDetector] and releases all resources.
   ///
   /// After calling this method, the singleton instance is cleared and
@@ -176,6 +226,50 @@ class VpnConnectionDetector {
     _platformSubscription = null;
     _stateController.close();
     _lastState = null;
+    _connectedSince = null;
+    _initialized = false;
     _instance = null;
+  }
+
+  /// Registers a callback that fires whenever a VPN connection is established.
+  ///
+  /// Returns a [StreamSubscription] that can be used to cancel the listener.
+  /// Remember to cancel the subscription when it's no longer needed.
+  ///
+  /// Example:
+  /// ```dart
+  /// final detector = VpnConnectionDetector();
+  /// final sub = detector.onVpnConnected(() {
+  ///   print('VPN just connected!');
+  /// });
+  /// // Later: sub.cancel();
+  /// ```
+  StreamSubscription<VpnConnectionState> onVpnConnected(
+    void Function() callback,
+  ) {
+    return vpnConnectionStream
+        .where((state) => state == VpnConnectionState.connected)
+        .listen((_) => callback());
+  }
+
+  /// Registers a callback that fires whenever a VPN connection is lost.
+  ///
+  /// Returns a [StreamSubscription] that can be used to cancel the listener.
+  /// Remember to cancel the subscription when it's no longer needed.
+  ///
+  /// Example:
+  /// ```dart
+  /// final detector = VpnConnectionDetector();
+  /// final sub = detector.onVpnDisconnected(() {
+  ///   print('VPN just disconnected!');
+  /// });
+  /// // Later: sub.cancel();
+  /// ```
+  StreamSubscription<VpnConnectionState> onVpnDisconnected(
+    void Function() callback,
+  ) {
+    return vpnConnectionStream
+        .where((state) => state == VpnConnectionState.disconnected)
+        .listen((_) => callback());
   }
 }

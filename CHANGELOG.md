@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.0.3] - 2026-02-19
+
+### Added
+- **Native macOS support** with ~95% accuracy using `CFNetworkCopySystemProxySettings` and `NWPathMonitor`
+- New `getAllVpnInfo()` method to retrieve all active VPN connections (useful for multiple simultaneous VPNs)
+- New `connectedSince` property on `VpnInfo` to track when VPN connection was first detected
+- New `onVpnConnected()` and `onVpnDisconnected()` convenience callbacks
+- `VpnInfo.copyWith()` method for immutable updates
+- Proper `==` and `hashCode` implementations on `VpnInfo`
+
+### Fixed
+- Fixed race condition between platform stream and initial state check using `_initialized` flag
+- Fixed duplicate event emissions by tracking last emitted VPN status in native plugins
+- Improved stream error handling - errors now return disconnected state instead of being swallowed
+- Fixed Android network callback cleanup - both VPN and default callbacks now properly unregistered
+
+### Changed
+- Refactored iOS/macOS native code with shared helper methods (`getScopedInterfaces`, `isVpnInterface`, `guessProtocol`)
+- macOS now excludes additional non-VPN interfaces (`vmnet`, `vboxnet`, `gif`, `stf`, `anpi`)
+- Updated Android `compileSdk` to 35
+- Improved broadcast stream caching in method channel implementation
+
 ## [2.0.2] - 2026-02-18
 ### Fixed
 - **iOS App Store rejection fix**: Removed `NEVPNManager` / `NetworkExtension` framework usage which requires the Network Extension entitlement (Apple Guideline 2.5.1)

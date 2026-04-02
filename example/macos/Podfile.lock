@@ -2,20 +2,26 @@ PODS:
   - connectivity_plus (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - vpn_connection_detector (2.0.2):
+    - FlutterMacOS
 
 DEPENDENCIES:
   - connectivity_plus (from `Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - vpn_connection_detector (from `Flutter/ephemeral/.symlinks/plugins/vpn_connection_detector/macos`)
 
 EXTERNAL SOURCES:
   connectivity_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/connectivity_plus/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  vpn_connection_detector:
+    :path: Flutter/ephemeral/.symlinks/plugins/vpn_connection_detector/macos
 
 SPEC CHECKSUMS:
   connectivity_plus: 4adf20a405e25b42b9c9f87feff8f4b6fde18a4e
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  vpn_connection_detector: f1f4cb56186ae336125649f412e25a9128367762
 
 PODFILE CHECKSUM: 9ebaf0ce3d369aaa26a9ea0e159195ed94724cf3
 

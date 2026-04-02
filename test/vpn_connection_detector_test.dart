@@ -28,6 +28,18 @@ class MockVpnConnectionDetectorPlatform
       vpnProtocol: _mockVpnStatus ? 'WireGuard' : null,
     );
   }
+
+  @override
+  Future<List<VpnInfo>> getAllVpnInfo() async {
+    if (!_mockVpnStatus) return [];
+    return [
+      const VpnInfo(
+        isConnected: true,
+        interfaceName: 'tun0',
+        vpnProtocol: 'WireGuard',
+      ),
+    ];
+  }
 }
 
 void main() {
@@ -83,8 +95,36 @@ void main() {
 
       expect(
         info.toString(),
-        'VpnInfo(isConnected: true, interfaceName: tun0, vpnProtocol: OpenVPN)',
+        'VpnInfo(isConnected: true, interfaceName: tun0, vpnProtocol: OpenVPN, connectedSince: null)',
       );
+    });
+
+    test('VpnInfo connectedSince from map', () {
+      final now = DateTime.now();
+      final map = {
+        'isConnected': true,
+        'interfaceName': 'utun3',
+        'vpnProtocol': 'Tunnel',
+        'connectedSince': now.millisecondsSinceEpoch,
+      };
+
+      final info = VpnInfo.fromMap(map);
+
+      expect(info.connectedSince, isNotNull);
+      expect(
+        info.connectedSince!.millisecondsSinceEpoch,
+        now.millisecondsSinceEpoch,
+      );
+    });
+
+    test('VpnInfo copyWith connectedSince', () {
+      final now = DateTime.now();
+      const info = VpnInfo(isConnected: true, interfaceName: 'tun0');
+      final updated = info.copyWith(connectedSince: now);
+
+      expect(updated.connectedSince, now);
+      expect(updated.isConnected, true);
+      expect(updated.interfaceName, 'tun0');
     });
   });
 
@@ -159,6 +199,26 @@ void main() {
       expect(info, isNotNull);
       expect(info!.isConnected, false);
       expect(info.interfaceName, isNull);
+    });
+
+    test('getAllVpnInfo returns list when VPN is connected', () async {
+      mockPlatform.setMockVpnStatus(true);
+
+      final vpns = await VpnConnectionDetector.getAllVpnInfo();
+
+      expect(vpns, isNotEmpty);
+      expect(vpns.first.isConnected, true);
+      expect(vpns.first.interfaceName, 'tun0');
+      expect(vpns.first.vpnProtocol, 'WireGuard');
+    });
+
+    test('getAllVpnInfo returns empty list when VPN is not connected',
+        () async {
+      mockPlatform.setMockVpnStatus(false);
+
+      final vpns = await VpnConnectionDetector.getAllVpnInfo();
+
+      expect(vpns, isEmpty);
     });
   });
 }

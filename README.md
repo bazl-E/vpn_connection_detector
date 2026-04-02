@@ -1,6 +1,6 @@
 # VPN Connection Detector
 
-**The most accurate VPN detection package for Flutter** — with native iOS & Android implementations that detect both system-configured VPNs and third-party VPN apps like NordVPN, ExpressVPN, ProtonVPN, and more.
+**The most accurate VPN detection package for Flutter** — with native iOS, Android & macOS implementations that detect both system-configured VPNs and third-party VPN apps like NordVPN, ExpressVPN, ProtonVPN, and more.
 
 [![pub package](https://img.shields.io/pub/v/vpn_connection_detector.svg)](https://pub.dev/packages/vpn_connection_detector)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -19,10 +19,13 @@ Most VPN detection solutions only check for system-configured VPNs, missing the 
 
 - ✅ **Native iOS detection** using `CFNetworkCopySystemProxySettings` and `NWPathMonitor`
 - ✅ **Native Android detection** using `NetworkCapabilities.TRANSPORT_VPN`
-- ✅ **Dart fallback** for desktop platforms (macOS, Windows, Linux)
+- ✅ **Native macOS detection** using `CFNetworkCopySystemProxySettings` and `NWPathMonitor`
+- ✅ **Dart fallback** for desktop platforms (Windows, Linux)
 - ✅ **Real-time streaming** of VPN connection status changes
 - ✅ **One-time checks** via static method
 - ✅ **Detailed VPN info** including interface name and protocol
+- ✅ **Multiple VPN detection** — detect all active VPN connections simultaneously
+- ✅ **Connection tracking** — know when VPN was first detected
 - ✅ **Singleton pattern** for efficient resource management
 - ✅ **App Store safe** — no private APIs or restricted entitlements required
 
@@ -32,7 +35,7 @@ Most VPN detection solutions only check for system-configured VPNs, missing the 
 |----------|--------|----------|-------|
 | iOS | ✅ | ~95% | Uses CFNetworkCopySystemProxySettings & NWPathMonitor |
 | Android | ✅ | ~95% | Uses NetworkCapabilities API |
-| macOS | ❌ | ~70-80% | Dart fallback (interface name matching) |
+| macOS | ✅ | ~95% | Uses CFNetworkCopySystemProxySettings & NWPathMonitor |
 | Windows | ❌ | ~70-80% | Dart fallback |
 | Linux | ❌ | ~70-80% | Dart fallback |
 
@@ -44,7 +47,7 @@ Add `vpn_connection_detector` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vpn_connection_detector: ^2.0.1
+  vpn_connection_detector: ^2.0.3
 ```
 
 ### Android Setup
@@ -58,6 +61,10 @@ Add the following permission to your `AndroidManifest.xml`:
 ### iOS Setup
 
 No additional setup required. The plugin uses system frameworks that are available by default.
+
+### macOS Setup
+
+No additional setup required. The plugin uses the same system frameworks as iOS.
 
 ## Usage
 
@@ -123,6 +130,50 @@ final currentState = vpnDetector.currentState;
 print('Current state: ${currentState?.name ?? "unknown"}');
 ```
 
+### Get All Active VPN Connections
+
+```dart
+// Useful when device has multiple VPNs (e.g., corporate + personal)
+final vpns = await VpnConnectionDetector.getAllVpnInfo();
+
+for (final vpn in vpns) {
+  print('Interface: ${vpn.interfaceName}, Protocol: ${vpn.vpnProtocol}');
+}
+```
+
+### Connection Event Callbacks
+
+```dart
+final vpnDetector = VpnConnectionDetector();
+
+// Register callback for VPN connect events
+final connectSub = vpnDetector.onVpnConnected(() {
+  print('VPN just connected!');
+  print('Connected since: ${vpnDetector.connectedSince}');
+});
+
+// Register callback for VPN disconnect events
+final disconnectSub = vpnDetector.onVpnDisconnected(() {
+  print('VPN just disconnected!');
+});
+
+// Don't forget to cancel subscriptions when done
+connectSub.cancel();
+disconnectSub.cancel();
+```
+
+### Track Connection Duration
+
+```dart
+final vpnDetector = VpnConnectionDetector();
+
+// Get when the current VPN connection was first detected
+if (vpnDetector.connectedSince != null) {
+  final duration = DateTime.now().difference(vpnDetector.connectedSince!);
+  print('VPN has been connected for ${duration.inMinutes} minutes');
+}
+```
+
 ## API Reference
 
 ### VpnConnectionDetector
@@ -131,8 +182,12 @@ print('Current state: ${currentState?.name ?? "unknown"}');
 |----------------|------|-------------|
 | `isVpnActive()` | `static Future<bool>` | One-time check if VPN is active |
 | `getVpnInfo()` | `static Future<VpnInfo?>` | Get detailed VPN information |
+| `getAllVpnInfo()` | `static Future<List<VpnInfo>>` | Get all active VPN connections |
 | `vpnConnectionStream` | `Stream<VpnConnectionState>` | Real-time status stream |
 | `currentState` | `VpnConnectionState?` | Last known VPN state |
+| `connectedSince` | `DateTime?` | When current VPN was first detected |
+| `onVpnConnected()` | `StreamSubscription` | Callback when VPN connects |
+| `onVpnDisconnected()` | `StreamSubscription` | Callback when VPN disconnects |
 | `dispose()` | `void` | Clean up resources |
 
 ### VpnConnectionState
@@ -151,6 +206,7 @@ class VpnInfo {
   final bool isConnected;       // Whether VPN is connected
   final String? interfaceName;  // Network interface name (e.g., 'utun3')
   final String? vpnProtocol;    // Detected VPN protocol (e.g., 'WireGuard')
+  final DateTime? connectedSince; // When the connection was first detected
 }
 ```
 
@@ -212,7 +268,10 @@ print('Protocol: ${info?.vpnProtocol}');
 ### Android
 Uses `ConnectivityManager` with `NetworkCapabilities.TRANSPORT_VPN` for accurate VPN detection on API 23+. This detects all VPN connections regardless of the VPN app used.
 
-### Desktop (Fallback)
+### macOS
+Uses the same `CFNetworkCopySystemProxySettings` SCOPED dictionary approach as iOS, providing accurate detection of all VPN types on macOS. Real-time monitoring via `NWPathMonitor`.
+
+### Desktop Fallback (Windows, Linux)
 Inspects network interface names for common VPN patterns (`tun`, `tap`, `ppp`, `wireguard`, etc.).
 
 ## Contributing

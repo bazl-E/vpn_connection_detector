@@ -1,5 +1,4 @@
-import Flutter
-import UIKit
+import FlutterMacOS
 import Network
 import SystemConfiguration
 
@@ -11,21 +10,16 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     /// Track last emitted VPN state to avoid sending duplicate events
     private var lastEmittedVpnStatus: Bool?
     
-    // Enable debug logging
-    private let debugEnabled = false
-    
-    /// Known non-VPN interface prefixes on iOS
-    private static let nonVpnPrefixes = ["en", "pdp_ip", "bridge", "ap", "awdl", "llw", "lo"]
-    
-    private func log(_ message: String) {
-        if debugEnabled {
-            print("[VPN_DETECTOR] \(message)")
-        }
-    }
+    /// Known non-VPN interface prefixes
+    private static let nonVpnPrefixes = [
+        "en", "bridge", "ap", "awdl", "llw", "lo",  // Common to iOS/macOS
+        "vmnet", "vboxnet",                           // Virtual machine interfaces (macOS)
+        "gif", "stf", "anpi",                         // macOS system interfaces
+    ]
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let channel = FlutterMethodChannel(name: "vpn_connection_detector", binaryMessenger: registrar.messenger())
-        let eventChannel = FlutterEventChannel(name: "vpn_connection_detector/status", binaryMessenger: registrar.messenger())
+        let channel = FlutterMethodChannel(name: "vpn_connection_detector", binaryMessenger: registrar.messenger)
+        let eventChannel = FlutterEventChannel(name: "vpn_connection_detector/status", binaryMessenger: registrar.messenger)
         
         let instance = VpnConnectionDetectorPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
@@ -35,17 +29,11 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "isVpnActive":
-            let isActive = isVpnConnected()
-            log("isVpnActive called, result: \(isActive)")
-            result(isActive)
+            result(isVpnConnected())
         case "getVpnInfo":
-            let info = getVpnInfo()
-            log("getVpnInfo called, result: \(info)")
-            result(info)
+            result(getVpnInfo())
         case "getAllVpnInfo":
-            let allInfo = getAllVpnInfo()
-            log("getAllVpnInfo called, result: \(allInfo)")
-            result(allInfo)
+            result(getAllVpnInfo())
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -54,16 +42,10 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     // MARK: - VPN Detection Methods
     
     /// Returns the SCOPED dictionary from CFNetworkCopySystemProxySettings, or nil.
-    /// This is the single source of truth — called once per detection cycle.
     private func getScopedInterfaces() -> [String: Any]? {
         guard let cfDict = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else {
-            log("  Could not get proxy settings")
             return nil
         }
-        
-        let topLevelKeys = cfDict.keys.sorted().joined(separator: ", ")
-        log("  CFNetwork top-level keys: \(topLevelKeys)")
-        
         return cfDict["__SCOPED__"] as? [String: Any]
     }
     
@@ -74,7 +56,6 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     /// Checks if an interface name matches a known VPN pattern.
-    /// VPN interfaces in SCOPED: utun*, ipsec*, tun* (non-utun), tap*, ppp*
     private static func isVpnInterface(_ interfaceName: String) -> Bool {
         let lower = interfaceName.lowercased()
         return lower.hasPrefix("utun") ||
@@ -99,11 +80,9 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     private func findVpnInterface(in scoped: [String: Any]) -> String? {
         for interface in scoped.keys {
             if VpnConnectionDetectorPlugin.isNonVpnInterface(interface) {
-                log("    Skipping known non-VPN interface: \(interface)")
                 continue
             }
             if VpnConnectionDetectorPlugin.isVpnInterface(interface) {
-                log("  ✓ Found VPN interface in SCOPED: \(interface)")
                 return interface
             }
         }
@@ -125,34 +104,15 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     private func isVpnConnected() -> Bool {
-        log("=== Starting VPN detection ===")
-        
         guard let scoped = getScopedInterfaces() else {
-            log("  No SCOPED dictionary found")
-            log("=== VPN detection complete: NOT CONNECTED ===")
             return false
         }
-        
-        let scopedInterfaces = scoped.keys.sorted().joined(separator: ", ")
-        log("  SCOPED interfaces: \(scopedInterfaces)")
-        
-        let result = findVpnInterface(in: scoped) != nil
-        
-        if !result {
-            log("=== VPN detection complete: NOT CONNECTED ===")
-        }
-        
-        return result
+        return findVpnInterface(in: scoped) != nil
     }
     
     private func getVpnInfo() -> [String: Any] {
-        log("=== Getting VPN info ===")
-        
-        guard let scoped = getScopedInterfaces() else {
-            return ["isConnected": false]
-        }
-        
-        guard let interfaceName = findVpnInterface(in: scoped) else {
+        guard let scoped = getScopedInterfaces(),
+              let interfaceName = findVpnInterface(in: scoped) else {
             return ["isConnected": false]
         }
         
@@ -185,14 +145,11 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = events
         
-        // Send initial status
         let initialStatus = isVpnConnected()
         lastEmittedVpnStatus = initialStatus
         events(initialStatus)
         
-        // Start monitoring VPN status changes
         startMonitoring()
-        
         return nil
     }
     
@@ -204,7 +161,6 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     }
     
     private func startMonitoring() {
-        // Monitor network path changes (this catches VPN connect/disconnect events)
         pathMonitor = NWPathMonitor()
         pathMonitor?.pathUpdateHandler = { [weak self] _ in
             DispatchQueue.main.async {
@@ -221,11 +177,8 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     
     private func notifyStatusChange() {
         let isConnected = isVpnConnected()
-        
-        // Only emit if the state actually changed
         if isConnected != lastEmittedVpnStatus {
             lastEmittedVpnStatus = isConnected
-            log("Status changed, VPN connected: \(isConnected)")
             eventSink?(isConnected)
         }
     }
