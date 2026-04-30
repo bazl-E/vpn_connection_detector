@@ -29,3 +29,7 @@ migrate_working_dir/
 .packages
 build/
 local.properties
+
+# Swift Package Manager
+.build/
+.swiftpm/
