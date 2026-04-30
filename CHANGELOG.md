@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.0.3] - 2026-04-02
+### Added
+- **Swift Package Manager (SwiftPM) support** for iOS plugin - Flutter plugins now support both CocoaPods and SwiftPM simultaneously
+- Added `Package.swift` manifest for SwiftPM integration
+- Restructured iOS plugin to use SwiftPM directory layout (`ios/vpn_connection_detector/Sources/vpn_connection_detector/`)
+- Updated `.gitignore` to exclude SwiftPM build artifacts (`.build/`, `.swiftpm/`)
+
+### Changed
+- Updated iOS podspec to reference new Swift source file location
+- Maintained full backwards compatibility with existing CocoaPods installations
+
 ## [2.0.2] - 2026-02-18
 ### Fixed
 - **iOS App Store rejection fix**: Removed `NEVPNManager` / `NetworkExtension` framework usage which requires the Network Extension entitlement (Apple Guideline 2.5.1)
