@@ -13,7 +13,7 @@ A Flutter plugin that detects VPN connection status on iOS and Android using nat
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'bazl-E' => 'your-email@example.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
+  s.source_files = 'vpn_connection_detector/Sources/vpn_connection_detector/**/*.swift'
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
 

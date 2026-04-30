@@ -2,7 +2,7 @@ PODS:
   - connectivity_plus (0.0.1):
     - Flutter
   - Flutter (1.0.0)
-  - vpn_connection_detector (2.0.1):
+  - vpn_connection_detector (2.0.2):
     - Flutter
 
 DEPENDENCIES:
@@ -21,7 +21,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  vpn_connection_detector: 1df37f0300d41df95954c9595866832631ce8adb
+  vpn_connection_detector: a76e5da23f6f4b26bdfc5fc4389b846b99cd9734
 
 PODFILE CHECKSUM: 4f1c12611da7338d21589c0b2ecd6bd20b109694
 
