@@ -85,26 +85,70 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
         return checkNetworkInterfaces()
     }
 
+    /**
+     * Interface name prefixes used by carrier-managed tunnels (VoWiFi / WiFi
+     * Calling / ePDG / IMS PDN / cellular modem channels). These are NOT user
+     * VPNs and must be skipped during interface scanning to avoid false
+     * positives.
+     *
+     * Background: VoWiFi (Voice-over-WiFi / WiFi Calling) is implemented as an
+     * IKEv2/IPsec tunnel to the carrier's ePDG (Evolved Packet Data Gateway).
+     * The resulting network interface name is OEM-specific:
+     *   - Xiaomi / Realme / Vivo:  vowifi_tun0
+     *   - Samsung / Stock 3GPP:    epdg0, epdg_tun0
+     *   - General IMS PDN:         ims*
+     *   - Qualcomm cellular modem: rmnet*
+     *   - MediaTek cellular modem: ccmni*
+     *
+     * Reported in issue #13.
+     */
+    private val carrierManagedPrefixes = listOf(
+        "vowifi",
+        "epdg",
+        "ims",
+        "rmnet",
+        "ccmni",
+    )
+
+    /**
+     * Real Android VPN apps go through VpnService, which always creates kernel
+     * TUN devices named exactly tun0, tun1, etc. (and similar for tap, ppp,
+     * wireguard's wg0 etc.). Using startsWith() instead of contains() rejects
+     * carrier interfaces like "vowifi_tun0" that happen to embed the word
+     * "tun" in their name.
+     */
+    private val vpnInterfacePrefixes = listOf(
+        "tun", "utun", "tap", "ppp", "pptp", "l2tp", "ipsec", "vpn", "wg",
+    )
+
+    /** Distinctive substrings that are safe to substring-match. */
+    private val vpnInterfaceSubstrings = listOf(
+        "wireguard", "openvpn", "tailscale", "zerotier", "nordlynx",
+    )
+
+    private fun isVpnInterfaceName(name: String): Boolean {
+        val lower = name.lowercase()
+        // Defense-in-depth: never treat a known carrier-managed interface as VPN.
+        if (carrierManagedPrefixes.any { lower.startsWith(it) }) return false
+        if (vpnInterfacePrefixes.any { lower.startsWith(it) }) return true
+        if (vpnInterfaceSubstrings.any { lower.contains(it) }) return true
+        return false
+    }
+
     private fun checkNetworkInterfaces(): Boolean {
         try {
             val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
-            
+
             for (networkInterface in interfaces) {
-                val name = networkInterface.name.lowercase()
-                
-                // Common VPN interface patterns
-                val vpnPatterns = listOf("tun", "tap", "ppp", "pptp", "l2tp", "ipsec", "vpn", "wireguard", "wg")
-                
-                for (pattern in vpnPatterns) {
-                    if (name.contains(pattern) && networkInterface.isUp) {
-                        return true
-                    }
+                if (!networkInterface.isUp) continue
+                if (isVpnInterfaceName(networkInterface.name)) {
+                    return true
                 }
             }
         } catch (e: Exception) {
             // If we can't list interfaces, fall through
         }
-        
+
         return false
     }
 
@@ -113,29 +157,25 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
         val info = mutableMapOf<String, Any?>(
             "isConnected" to isConnected
         )
-        
+
         if (isConnected) {
-            // Try to get interface name and protocol
             try {
                 val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
-                
+
                 for (networkInterface in interfaces) {
-                    val name = networkInterface.name.lowercase()
-                    val vpnPatterns = listOf("tun", "tap", "ppp", "pptp", "l2tp", "ipsec", "vpn", "wireguard", "wg")
-                    
-                    for (pattern in vpnPatterns) {
-                        if (name.contains(pattern) && networkInterface.isUp) {
-                            info["interfaceName"] = networkInterface.name
-                            info["vpnProtocol"] = guessProtocol(name)
-                            return info
-                        }
+                    if (!networkInterface.isUp) continue
+                    val name = networkInterface.name
+                    if (isVpnInterfaceName(name)) {
+                        info["interfaceName"] = name
+                        info["vpnProtocol"] = guessProtocol(name.lowercase())
+                        return info
                     }
                 }
             } catch (e: Exception) {
                 // Ignore
             }
         }
-        
+
         return info
     }
 

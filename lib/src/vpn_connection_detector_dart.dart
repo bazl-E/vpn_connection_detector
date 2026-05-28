@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:meta/meta.dart';
 
 import 'vpn_connection_detector_platform_interface.dart';
 
@@ -22,28 +23,54 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
   /// Last known VPN status
   bool _lastKnownStatus = false;
 
-  /// Common VPN interface name patterns
-  static final List<String> _vpnInterfacePatterns = [
-    'tun', // Linux/Unix TUN interface
+  /// Interface name prefixes that must match the START of the name. Real
+  /// VPN apps using `VpnService` always create kernel TUN/TAP/PPP devices
+  /// whose names START with one of these tokens (e.g. `tun0`, `wg0`).
+  /// Using prefix matching (rather than substring matching) avoids false
+  /// positives like `vowifi_tun0` and `epdg_tun0` which embed the word
+  /// `tun` inside an OEM-specific carrier interface name.
+  static const List<String> _vpnInterfacePrefixes = [
+    'tun', // Linux/Unix TUN interface, OpenVPN, OpenConnect, etc.
+    'utun', // macOS / iOS WireGuard, OpenVPN-Connect, etc.
     'tap', // Linux/Unix TAP interface
     'ppp', // Point-to-Point Protocol
     'pptp', // PPTP VPN
     'l2tp', // L2TP VPN
     'ipsec', // IPsec VPN
-    'vpn', // Generic "VPN" keyword
-    'wireguard', // WireGuard VPN
-    'wg', // WireGuard shorthand
-    'openvpn', // OpenVPN
-    'softether', // SoftEther VPN
-    'nordlynx', // NordVPN's WireGuard implementation
-    'proton', // ProtonVPN
-    'mullvad', // Mullvad VPN
-    'tailscale', // Tailscale
-    'zerotier', // ZeroTier
-    'gpd', // Global Protect
-    'cisco', // Cisco AnyConnect
-    'fortinet', // Fortinet VPN
-    'forticlient', // FortiClient
+    'vpn', // Generic "VPN" prefix
+    'wg', // WireGuard kernel module (wg0, wg1, ...)
+  ];
+
+  /// Distinctive vendor substrings that are safe to substring-match because
+  /// they don't collide with carrier-managed interface names.
+  static const List<String> _vpnInterfaceSubstrings = [
+    'wireguard',
+    'openvpn',
+    'softether',
+    'nordlynx',
+    'proton',
+    'mullvad',
+    'tailscale',
+    'zerotier',
+    'forticlient',
+    'fortinet',
+  ];
+
+  /// Interface name prefixes used by carrier-managed tunnels (VoWiFi / WiFi
+  /// Calling / ePDG / IMS PDN / cellular modem channels). These are NOT user
+  /// VPNs and must be skipped to avoid false positives — see issue #13.
+  ///
+  /// - `vowifi*` — Xiaomi / Realme / Vivo OEM naming for VoWiFi tunnels
+  /// - `epdg*`   — Samsung / 3GPP standard ePDG gateway
+  /// - `ims*`    — IMS PDN (IP Multimedia Subsystem)
+  /// - `rmnet*`  — Qualcomm Radio Modem cellular data channels
+  /// - `ccmni*`  — MediaTek cellular interface
+  static const List<String> _carrierManagedPrefixes = [
+    'vowifi',
+    'epdg',
+    'ims',
+    'rmnet',
+    'ccmni',
   ];
 
   /// iOS-specific patterns to ignore (these appear even without VPN on iOS 17+)
@@ -53,6 +80,30 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
     'ikev2',
     'l2tp',
   ];
+
+  /// Returns true if [interfaceName] looks like a real user VPN interface,
+  /// excluding known carrier-managed (VoWiFi / IMS) tunnels.
+  ///
+  /// Exposed for tests. The [isIos] flag enables iOS-specific filtering of
+  /// system tunnels that appear on iOS 17+ even without an active VPN.
+  @visibleForTesting
+  static bool isVpnInterfaceName(String interfaceName, {required bool isIos}) {
+    final lower = interfaceName.toLowerCase();
+    // Defense-in-depth: never treat a carrier-managed interface as VPN.
+    if (_carrierManagedPrefixes.any(lower.startsWith)) return false;
+    if (_vpnInterfacePrefixes.any(lower.startsWith)) {
+      if (isIos && _shouldIgnoreOnIosStatic(lower)) return false;
+      return true;
+    }
+    if (_vpnInterfaceSubstrings.any(lower.contains)) {
+      if (isIos && _shouldIgnoreOnIosStatic(lower)) return false;
+      return true;
+    }
+    return false;
+  }
+
+  static bool _shouldIgnoreOnIosStatic(String interfaceName) =>
+      _iosIgnorePatterns.any(interfaceName.contains);
 
   @override
   Future<bool> isVpnActive() async {
@@ -66,17 +117,8 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       final isIos = Platform.isIOS;
 
       for (final interface in interfaces) {
-        final name = interface.name.toLowerCase();
-
-        // Check if this interface matches any VPN pattern
-        for (final pattern in _vpnInterfacePatterns) {
-          if (name.contains(pattern)) {
-            // On iOS, skip known false-positive patterns
-            if (isIos && _shouldIgnoreOnIos(name)) {
-              continue;
-            }
-            return true;
-          }
+        if (isVpnInterfaceName(interface.name, isIos: isIos)) {
+          return true;
         }
       }
       return false;
@@ -84,11 +126,6 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       // If we can't list interfaces, assume no VPN
       return false;
     }
-  }
-
-  /// Check if the interface should be ignored on iOS
-  bool _shouldIgnoreOnIos(String interfaceName) {
-    return _iosIgnorePatterns.any((pattern) => interfaceName.contains(pattern));
   }
 
   @override
@@ -147,19 +184,12 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       final isIos = Platform.isIOS;
 
       for (final interface in interfaces) {
-        final name = interface.name.toLowerCase();
-
-        for (final pattern in _vpnInterfacePatterns) {
-          if (name.contains(pattern)) {
-            if (isIos && _shouldIgnoreOnIos(name)) {
-              continue;
-            }
-            return VpnInfo(
-              isConnected: true,
-              interfaceName: interface.name,
-              vpnProtocol: _guessProtocol(name),
-            );
-          }
+        if (isVpnInterfaceName(interface.name, isIos: isIos)) {
+          return VpnInfo(
+            isConnected: true,
+            interfaceName: interface.name,
+            vpnProtocol: _guessProtocol(interface.name.toLowerCase()),
+          );
         }
       }
       return VpnInfo(isConnected: false);

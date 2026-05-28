@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.1.1] - 2026-05-02
+### Fixed
+- **VoWiFi / WiFi Calling false positives on Android** ([#13](https://github.com/bazlecodes/vpn_connection_detector/issues/13)).
+  Carrier-managed tunnels such as `vowifi_tun0` (Xiaomi / Realme / Vivo),
+  `epdg*` (Samsung / 3GPP ePDG), `ims*` (IMS PDN), `rmnet*` (Qualcomm cellular)
+  and `ccmni*` (MediaTek cellular) are no longer reported as VPN connections.
+  Thanks to [@sumit-pice](https://github.com/sumit-pice) for the detailed report.
+
+### Changed
+- Interface-name matching now uses **prefix matching** (`startsWith`) for the
+  ambiguous tokens `tun`, `tap`, `ppp`, `pptp`, `l2tp`, `ipsec`, `vpn`, `wg`
+  and `utun`, instead of substring matching. This aligns with the AOSP
+  `VpnService` naming convention (`tun0`, `tun1`, …) and prevents collisions
+  with OEM carrier interface names that happen to embed those tokens.
+- Distinctive vendor names (`wireguard`, `openvpn`, `tailscale`, `zerotier`,
+  `nordlynx`, etc.) continue to use substring matching since they don't
+  collide with carrier names.
+- An explicit deny-list of carrier-managed prefixes (`vowifi`, `epdg`, `ims`,
+  `rmnet`, `ccmni`) is now checked **before** the VPN pattern match as a
+  defense-in-depth measure.
+- Applied identically in the Android Kotlin native implementation and the
+  Dart fallback used by desktop platforms. iOS is unaffected (the iOS path
+  uses the CFNetwork SCOPED proxy dictionary, which does not surface VoWiFi
+  tunnels).
+
+### Added
+- New regression test suite `test/vpn_interface_name_test.dart` covering
+  55 interface-name cases (real VPNs, carrier-managed interfaces, iOS
+  false-positive filters, case insensitivity).
+
 ## [2.1.0] - 2026-05-01
 ### Added
 - **System proxy detection** — brand-new APIs that are independent of VPN detection:
