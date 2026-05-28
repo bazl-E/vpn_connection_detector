@@ -110,4 +110,56 @@ class MethodChannelVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       return _dartFallback.getVpnInfo();
     }
   }
+
+  @override
+  Future<bool> isProxyActive() async {
+    if (!_useNative) {
+      return _dartFallback.isProxyActive();
+    }
+    try {
+      final result = await methodChannel.invokeMethod<bool>('isProxyActive');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('VpnConnectionDetector: isProxyActive failed: ${e.message}');
+      return _dartFallback.isProxyActive();
+    } on MissingPluginException {
+      return _dartFallback.isProxyActive();
+    }
+  }
+
+  @override
+  Future<ProxyInfo?> getProxyInfo() async {
+    if (!_useNative) {
+      return _dartFallback.getProxyInfo();
+    }
+    try {
+      final result =
+          await methodChannel.invokeMapMethod<String, dynamic>('getProxyInfo');
+      if (result == null) return null;
+      return ProxyInfo.fromMap(result);
+    } on PlatformException catch (e) {
+      debugPrint('VpnConnectionDetector: getProxyInfo failed: ${e.message}');
+      return _dartFallback.getProxyInfo();
+    } on MissingPluginException {
+      return _dartFallback.getProxyInfo();
+    }
+  }
+
+  @override
+  Future<bool> isTrafficInterceptionActive() async {
+    if (!_useNative) {
+      return _dartFallback.isTrafficInterceptionActive();
+    }
+    try {
+      final result = await methodChannel
+          .invokeMethod<bool>('isTrafficInterceptionActive');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint(
+          'VpnConnectionDetector: isTrafficInterceptionActive failed: ${e.message}');
+      return _dartFallback.isTrafficInterceptionActive();
+    } on MissingPluginException {
+      return _dartFallback.isTrafficInterceptionActive();
+    }
+  }
 }

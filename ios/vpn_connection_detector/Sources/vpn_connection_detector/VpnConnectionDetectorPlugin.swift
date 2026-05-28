@@ -36,6 +36,18 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
             let info = getVpnInfo()
             log("getVpnInfo called, result: \(info)")
             result(info)
+        case "isProxyActive":
+            let isActive = isProxyConfigured()
+            log("isProxyActive called, result: \(isActive)")
+            result(isActive)
+        case "getProxyInfo":
+            let info = getProxyInfo()
+            log("getProxyInfo called, result: \(info)")
+            result(info)
+        case "isTrafficInterceptionActive":
+            let intercepted = isVpnConnected() || isProxyConfigured()
+            log("isTrafficInterceptionActive called, result: \(intercepted)")
+            result(intercepted)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -193,6 +205,94 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
         return nil
     }
     
+    // MARK: - Proxy Detection Methods
+
+    /// Reads the system-wide proxy settings using Apple's public CFNetwork API.
+    /// Documented at:
+    /// https://developer.apple.com/documentation/cfnetwork/cfnetworkcopysystemproxysettings()
+    /// https://developer.apple.com/documentation/cfnetwork/global-proxy-settings-constants
+    ///
+    /// Per Apple's docs each `*Enable` value is a `CFNumber` and the proxy is
+    /// enabled when the key is present and the value is nonzero. We check the
+    /// `Enable` flags AND require a non-empty host/PAC URL to avoid false
+    /// positives from stale keys.
+    private func isProxyConfigured() -> Bool {
+        guard let cfDict = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else {
+            return false
+        }
+
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable, hostKey: kCFNetworkProxiesHTTPProxy) {
+            return true
+        }
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPSEnable, hostKey: kCFNetworkProxiesHTTPSProxy) {
+            return true
+        }
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesSOCKSEnable, hostKey: kCFNetworkProxiesSOCKSProxy) {
+            return true
+        }
+        if pacEnabled(in: cfDict) {
+            return true
+        }
+        return false
+    }
+
+    private func getProxyInfo() -> [String: Any] {
+        var info: [String: Any] = ["isActive": false]
+
+        guard let cfDict = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else {
+            return info
+        }
+
+        // Order of preference: HTTPS > HTTP > SOCKS > PAC.
+        // HTTPS is generally the most relevant for app traffic.
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPSEnable, hostKey: kCFNetworkProxiesHTTPSProxy) {
+            info["isActive"] = true
+            info["proxyType"] = "https"
+            info["host"] = cfDict[kCFNetworkProxiesHTTPSProxy as String] as? String
+            info["port"] = (cfDict[kCFNetworkProxiesHTTPSPort as String] as? NSNumber)?.intValue
+            return info
+        }
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable, hostKey: kCFNetworkProxiesHTTPProxy) {
+            info["isActive"] = true
+            info["proxyType"] = "http"
+            info["host"] = cfDict[kCFNetworkProxiesHTTPProxy as String] as? String
+            info["port"] = (cfDict[kCFNetworkProxiesHTTPPort as String] as? NSNumber)?.intValue
+            return info
+        }
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesSOCKSEnable, hostKey: kCFNetworkProxiesSOCKSProxy) {
+            info["isActive"] = true
+            info["proxyType"] = "socks"
+            info["host"] = cfDict[kCFNetworkProxiesSOCKSProxy as String] as? String
+            info["port"] = (cfDict[kCFNetworkProxiesSOCKSPort as String] as? NSNumber)?.intValue
+            return info
+        }
+        if pacEnabled(in: cfDict) {
+            info["isActive"] = true
+            info["proxyType"] = "pac"
+            info["pacUrl"] = cfDict[kCFNetworkProxiesProxyAutoConfigURLString as String] as? String
+            return info
+        }
+        return info
+    }
+
+    private func proxyEnabled(in dict: [String: Any], enableKey: CFString, hostKey: CFString) -> Bool {
+        let enabled = (dict[enableKey as String] as? NSNumber)?.intValue ?? 0
+        guard enabled != 0 else { return false }
+        if let host = dict[hostKey as String] as? String, !host.isEmpty {
+            return true
+        }
+        return false
+    }
+
+    private func pacEnabled(in dict: [String: Any]) -> Bool {
+        let enabled = (dict[kCFNetworkProxiesProxyAutoConfigEnable as String] as? NSNumber)?.intValue ?? 0
+        guard enabled != 0 else { return false }
+        if let url = dict[kCFNetworkProxiesProxyAutoConfigURLString as String] as? String, !url.isEmpty {
+            return true
+        }
+        return false
+    }
+
     // MARK: - FlutterStreamHandler
     
     public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {

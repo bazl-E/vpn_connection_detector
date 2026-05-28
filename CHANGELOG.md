@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.1.0] - 2026-05-01
+### Added
+- **System proxy detection** — brand-new APIs that are independent of VPN detection:
+  - `VpnConnectionDetector.isProxyActive()` — quickly check whether an HTTP / HTTPS / SOCKS / PAC proxy is currently configured.
+  - `VpnConnectionDetector.getProxyInfo()` — returns a `ProxyInfo` with `host`, `port`, `proxyType` and `pacUrl`.
+  - `VpnConnectionDetector.isTrafficInterceptionActive()` — convenience helper returning `true` when **either** a VPN or a system proxy is active. Useful for security checks where any form of traffic interception matters.
+- New `ProxyInfo` model and `ProxyType` enum (`http`, `https`, `socks`, `pac`) exported from the package root.
+- **iOS / macOS native proxy detection** via `CFNetworkCopySystemProxySettings()` using the official Apple `kCFNetworkProxiesHTTPEnable` / `HTTPSEnable` / `SOCKSEnable` / `ProxyAutoConfigEnable` constants. Detects HTTP, HTTPS, SOCKS and PAC (Proxy Auto-Config) proxies — no special entitlements required, App Store safe.
+- **Android native proxy detection** via `ConnectivityManager.getDefaultProxy()` (API 23+). Detects HTTP proxies and PAC URLs configured for the active network.
+- **Desktop fallback** that inspects the standard `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` environment variables (and their lower-case variants).
+
+### Changed
+- `isVpnActive()` semantics are unchanged — it still detects **only** VPN tunnels, never proxies. This avoids breaking existing users who rely on strict VPN semantics.
+
 ## [2.0.3] - 2026-04-02
 ### Added
 - **Swift Package Manager (SwiftPM) support** for iOS plugin - Flutter plugins now support both CocoaPods and SwiftPM simultaneously

@@ -4,7 +4,8 @@ import 'dart:async';
 
 import 'src/vpn_connection_detector_platform_interface.dart';
 
-export 'src/vpn_connection_detector_platform_interface.dart' show VpnInfo;
+export 'src/vpn_connection_detector_platform_interface.dart'
+    show VpnInfo, ProxyInfo, ProxyType;
 
 /// The state of a VPN connection.
 enum VpnConnectionState {
@@ -131,6 +132,59 @@ class VpnConnectionDetector {
   /// ```
   static Future<VpnInfo?> getVpnInfo() {
     return VpnConnectionDetectorPlatform.instance.getVpnInfo();
+  }
+
+  /// Returns `true` if a system HTTP/HTTPS/SOCKS/PAC proxy is currently
+  /// configured on the device.
+  ///
+  /// A proxy is **not** the same as a VPN: a proxy only intercepts traffic
+  /// for apps that honor system proxy settings, while a VPN creates a full
+  /// network tunnel. Use [isVpnActive] for VPN-only detection and
+  /// [isTrafficInterceptionActive] for a combined "any interception" check.
+  ///
+  /// - On iOS/macOS this calls `CFNetworkCopySystemProxySettings()` and
+  ///   inspects the official Apple `kCFNetworkProxies*` constants.
+  /// - On Android (API 23+) this calls
+  ///   `ConnectivityManager.getDefaultProxy()`.
+  /// - On other platforms (desktop, web) this falls back to reading the
+  ///   `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` environment variables.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (await VpnConnectionDetector.isProxyActive()) {
+  ///   print('A system proxy is configured');
+  /// }
+  /// ```
+  static Future<bool> isProxyActive() {
+    return VpnConnectionDetectorPlatform.instance.isProxyActive();
+  }
+
+  /// Returns detailed information about the currently configured system
+  /// proxy, or a [ProxyInfo] with `isActive: false` when none is set.
+  ///
+  /// Example:
+  /// ```dart
+  /// final info = await VpnConnectionDetector.getProxyInfo();
+  /// if (info?.isActive == true) {
+  ///   print('Proxy: ${info?.host}:${info?.port} (${info?.proxyType?.name})');
+  /// }
+  /// ```
+  static Future<ProxyInfo?> getProxyInfo() {
+    return VpnConnectionDetectorPlatform.instance.getProxyInfo();
+  }
+
+  /// Returns `true` if either a VPN **or** a system proxy is currently
+  /// active. Convenient for security-focused checks where any form of
+  /// traffic interception should be detected.
+  ///
+  /// Example:
+  /// ```dart
+  /// if (await VpnConnectionDetector.isTrafficInterceptionActive()) {
+  ///   // Warn the user that their traffic may be inspected.
+  /// }
+  /// ```
+  static Future<bool> isTrafficInterceptionActive() {
+    return VpnConnectionDetectorPlatform.instance.isTrafficInterceptionActive();
   }
 
   /// A stream of [VpnConnectionState] that emits whenever the VPN

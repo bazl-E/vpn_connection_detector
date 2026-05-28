@@ -7,9 +7,14 @@ class MockVpnConnectionDetectorPlatform
     with MockPlatformInterfaceMixin
     implements VpnConnectionDetectorPlatform {
   bool _mockVpnStatus = false;
+  bool _mockProxyStatus = false;
 
   void setMockVpnStatus(bool status) {
     _mockVpnStatus = status;
+  }
+
+  void setMockProxyStatus(bool status) {
+    _mockProxyStatus = status;
   }
 
   @override
@@ -27,6 +32,25 @@ class MockVpnConnectionDetectorPlatform
       interfaceName: _mockVpnStatus ? 'tun0' : null,
       vpnProtocol: _mockVpnStatus ? 'WireGuard' : null,
     );
+  }
+
+  @override
+  Future<bool> isProxyActive() async => _mockProxyStatus;
+
+  @override
+  Future<ProxyInfo?> getProxyInfo() async {
+    if (!_mockProxyStatus) return const ProxyInfo(isActive: false);
+    return const ProxyInfo(
+      isActive: true,
+      host: '127.0.0.1',
+      port: 8080,
+      proxyType: ProxyType.http,
+    );
+  }
+
+  @override
+  Future<bool> isTrafficInterceptionActive() async {
+    return _mockVpnStatus || _mockProxyStatus;
   }
 }
 
@@ -159,6 +183,105 @@ void main() {
       expect(info, isNotNull);
       expect(info!.isConnected, false);
       expect(info.interfaceName, isNull);
+    });
+  });
+
+  group('ProxyInfo', () {
+    test('creates ProxyInfo from map (http)', () {
+      final map = {
+        'isActive': true,
+        'host': '10.0.0.1',
+        'port': 3128,
+        'proxyType': 'http',
+      };
+      final info = ProxyInfo.fromMap(map);
+      expect(info.isActive, true);
+      expect(info.host, '10.0.0.1');
+      expect(info.port, 3128);
+      expect(info.proxyType, ProxyType.http);
+      expect(info.pacUrl, isNull);
+    });
+
+    test('creates ProxyInfo from map (pac)', () {
+      final map = {
+        'isActive': true,
+        'proxyType': 'pac',
+        'pacUrl': 'http://example.com/proxy.pac',
+      };
+      final info = ProxyInfo.fromMap(map);
+      expect(info.isActive, true);
+      expect(info.proxyType, ProxyType.pac);
+      expect(info.pacUrl, 'http://example.com/proxy.pac');
+      expect(info.host, isNull);
+    });
+
+    test('round-trips through toMap/fromMap', () {
+      const original = ProxyInfo(
+        isActive: true,
+        host: '127.0.0.1',
+        port: 1080,
+        proxyType: ProxyType.socks,
+      );
+      final restored = ProxyInfo.fromMap(original.toMap());
+      expect(restored.isActive, original.isActive);
+      expect(restored.host, original.host);
+      expect(restored.port, original.port);
+      expect(restored.proxyType, original.proxyType);
+    });
+
+    test('unknown proxyType returns null', () {
+      final info = ProxyInfo.fromMap({'isActive': true, 'proxyType': 'weird'});
+      expect(info.proxyType, isNull);
+    });
+  });
+
+  group('Proxy detection with mock platform', () {
+    late MockVpnConnectionDetectorPlatform mockPlatform;
+
+    setUp(() {
+      mockPlatform = MockVpnConnectionDetectorPlatform();
+      VpnConnectionDetectorPlatform.instance = mockPlatform;
+    });
+
+    test('isProxyActive returns false when no proxy', () async {
+      mockPlatform.setMockProxyStatus(false);
+      expect(await VpnConnectionDetector.isProxyActive(), false);
+    });
+
+    test('isProxyActive returns true when proxy configured', () async {
+      mockPlatform.setMockProxyStatus(true);
+      expect(await VpnConnectionDetector.isProxyActive(), true);
+    });
+
+    test('getProxyInfo returns details when proxy active', () async {
+      mockPlatform.setMockProxyStatus(true);
+      final info = await VpnConnectionDetector.getProxyInfo();
+      expect(info, isNotNull);
+      expect(info!.isActive, true);
+      expect(info.host, '127.0.0.1');
+      expect(info.port, 8080);
+      expect(info.proxyType, ProxyType.http);
+    });
+
+    test('isTrafficInterceptionActive true when only VPN active', () async {
+      mockPlatform.setMockVpnStatus(true);
+      mockPlatform.setMockProxyStatus(false);
+      expect(
+          await VpnConnectionDetector.isTrafficInterceptionActive(), true);
+    });
+
+    test('isTrafficInterceptionActive true when only proxy active', () async {
+      mockPlatform.setMockVpnStatus(false);
+      mockPlatform.setMockProxyStatus(true);
+      expect(
+          await VpnConnectionDetector.isTrafficInterceptionActive(), true);
+    });
+
+    test('isTrafficInterceptionActive false when neither active', () async {
+      mockPlatform.setMockVpnStatus(false);
+      mockPlatform.setMockProxyStatus(false);
+      expect(
+          await VpnConnectionDetector.isTrafficInterceptionActive(), false);
     });
   });
 }

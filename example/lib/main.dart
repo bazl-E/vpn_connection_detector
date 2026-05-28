@@ -31,7 +31,9 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final _vpnDetector = VpnConnectionDetector();
   VpnInfo? _vpnInfo;
+  ProxyInfo? _proxyInfo;
   bool _isChecking = false;
+  bool _isCheckingProxy = false;
 
   @override
   void dispose() {
@@ -47,6 +49,17 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _vpnInfo = info;
       _isChecking = false;
+    });
+  }
+
+  Future<void> _checkProxyInfo() async {
+    setState(() => _isCheckingProxy = true);
+
+    final info = await VpnConnectionDetector.getProxyInfo();
+
+    setState(() {
+      _proxyInfo = info;
+      _isCheckingProxy = false;
     });
   }
 
@@ -143,6 +156,70 @@ class _MyHomePageState extends State<MyHomePage> {
 
             const SizedBox(height: 16),
 
+            // Proxy detection
+            _buildCard(
+              title: 'System Proxy Detection',
+              icon: Icons.dns_outlined,
+              child: Column(
+                children: [
+                  FutureBuilder<bool>(
+                    future: VpnConnectionDetector.isProxyActive(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
+                      final isActive = snapshot.data ?? false;
+                      return _buildStatusChip(
+                        isActive ? 'Proxy Configured' : 'No Proxy',
+                        isActive ? Colors.green : Colors.orange,
+                        isActive ? Icons.dns : Icons.dns_outlined,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isCheckingProxy)
+                    const CircularProgressIndicator()
+                  else if (_proxyInfo != null)
+                    _buildProxyInfoDetails(_proxyInfo!)
+                  else
+                    const Text('Tap below to fetch proxy details'),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: _isCheckingProxy ? null : _checkProxyInfo,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Get Proxy Info'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Combined interception check
+            _buildCard(
+              title: 'Traffic Interception (VPN or Proxy)',
+              icon: Icons.shield_outlined,
+              child: FutureBuilder<bool>(
+                future: VpnConnectionDetector.isTrafficInterceptionActive(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final intercepted = snapshot.data ?? false;
+                  return _buildStatusChip(
+                    intercepted
+                        ? 'Traffic May Be Intercepted'
+                        : 'No Interception Detected',
+                    intercepted ? Colors.red : Colors.green,
+                    intercepted ? Icons.warning_amber : Icons.verified_user,
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             // Current state
             _buildCard(
               title: 'Current Cached State',
@@ -218,6 +295,26 @@ class _MyHomePageState extends State<MyHomePage> {
           _buildInfoRow('Interface', info.interfaceName!, Colors.blue),
         if (info.vpnProtocol != null)
           _buildInfoRow('Protocol', info.vpnProtocol!, Colors.purple),
+      ],
+    );
+  }
+
+  Widget _buildProxyInfoDetails(ProxyInfo info) {
+    return Column(
+      children: [
+        _buildInfoRow(
+          'Status',
+          info.isActive ? 'Active' : 'Inactive',
+          info.isActive ? Colors.green : Colors.orange,
+        ),
+        if (info.proxyType != null)
+          _buildInfoRow('Type', info.proxyType!.name, Colors.purple),
+        if (info.host != null)
+          _buildInfoRow('Host', info.host!, Colors.blue),
+        if (info.port != null)
+          _buildInfoRow('Port', info.port!.toString(), Colors.blue),
+        if (info.pacUrl != null)
+          _buildInfoRow('PAC URL', info.pacUrl!, Colors.teal),
       ],
     );
   }

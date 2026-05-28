@@ -113,6 +113,37 @@ if (info != null && info.isConnected) {
 }
 ```
 
+### Detect System Proxies (NEW in 2.1.0)
+
+A proxy is **not** the same as a VPN. `isVpnActive()` will return `false` for a
+device that only has an HTTP proxy configured (e.g. Charles, mitmproxy,
+corporate proxy). Use the dedicated proxy APIs for that:
+
+```dart
+// Quick check: is there an HTTP / HTTPS / SOCKS / PAC proxy configured?
+final hasProxy = await VpnConnectionDetector.isProxyActive();
+
+// Detailed info
+final proxy = await VpnConnectionDetector.getProxyInfo();
+if (proxy != null && proxy.isActive) {
+  print('Proxy: ${proxy.host}:${proxy.port} (${proxy.proxyType?.name})');
+  if (proxy.pacUrl != null) print('PAC: ${proxy.pacUrl}');
+}
+
+// Security check: detect ANY form of traffic interception (VPN or proxy)
+if (await VpnConnectionDetector.isTrafficInterceptionActive()) {
+  // Warn the user that their traffic may be inspected.
+}
+```
+
+**How it works:**
+
+| Platform | Proxy API |
+|----------|-----------|
+| iOS / macOS | `CFNetworkCopySystemProxySettings()` + official `kCFNetworkProxies*` constants |
+| Android (API 23+) | `ConnectivityManager.getDefaultProxy()` |
+| Desktop / fallback | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` env vars |
+
 ### Access Current Cached State
 
 ```dart
@@ -131,6 +162,9 @@ print('Current state: ${currentState?.name ?? "unknown"}');
 |----------------|------|-------------|
 | `isVpnActive()` | `static Future<bool>` | One-time check if VPN is active |
 | `getVpnInfo()` | `static Future<VpnInfo?>` | Get detailed VPN information |
+| `isProxyActive()` | `static Future<bool>` | One-time check if a system proxy is configured |
+| `getProxyInfo()` | `static Future<ProxyInfo?>` | Get detailed system-proxy information |
+| `isTrafficInterceptionActive()` | `static Future<bool>` | `true` when **either** VPN or proxy is active |
 | `vpnConnectionStream` | `Stream<VpnConnectionState>` | Real-time status stream |
 | `currentState` | `VpnConnectionState?` | Last known VPN state |
 | `dispose()` | `void` | Clean up resources |
@@ -151,6 +185,20 @@ class VpnInfo {
   final bool isConnected;       // Whether VPN is connected
   final String? interfaceName;  // Network interface name (e.g., 'utun3')
   final String? vpnProtocol;    // Detected VPN protocol (e.g., 'WireGuard')
+}
+```
+
+### ProxyInfo & ProxyType
+
+```dart
+enum ProxyType { http, https, socks, pac }
+
+class ProxyInfo {
+  final bool isActive;          // Whether a system proxy is configured
+  final String? host;           // Proxy host (null for PAC)
+  final int? port;              // Proxy port (null for PAC)
+  final ProxyType? proxyType;   // http / https / socks / pac
+  final String? pacUrl;         // PAC script URL (only for ProxyType.pac)
 }
 ```
 

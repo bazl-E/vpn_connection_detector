@@ -46,6 +46,15 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
             "getVpnInfo" -> {
                 result.success(getVpnInfo())
             }
+            "isProxyActive" -> {
+                result.success(isProxyConfigured())
+            }
+            "getProxyInfo" -> {
+                result.success(getProxyInfo())
+            }
+            "isTrafficInterceptionActive" -> {
+                result.success(isVpnConnected() || isProxyConfigured())
+            }
             else -> {
                 result.notImplemented()
             }
@@ -142,6 +151,45 @@ class VpnConnectionDetectorPlugin: FlutterPlugin, MethodCallHandler, EventChanne
             name.contains("tun") || name.contains("tap") -> "TUN/TAP"
             else -> null
         }
+    }
+
+    // MARK: - Proxy Detection Methods
+
+    /// Reads the system-wide default proxy via ConnectivityManager.getDefaultProxy().
+    /// Available on API 23 (Android 6.0 Marshmallow) and above.
+    /// Reference: https://developer.android.com/reference/android/net/ConnectivityManager#getDefaultProxy()
+    /// On older devices (API 21-22) this returns false because Android does not
+    /// expose a reliable public API to query the system proxy.
+    private fun isProxyConfigured(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        val cm = connectivityManager ?: return false
+        val proxy = cm.defaultProxy ?: return false
+        // ProxyInfo.isValid() validates that either host:port OR PAC URL is set.
+        return proxy.isValid
+    }
+
+    private fun getProxyInfo(): Map<String, Any?> {
+        val info = mutableMapOf<String, Any?>("isActive" to false)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return info
+        val cm = connectivityManager ?: return info
+        val proxy = cm.defaultProxy ?: return info
+        if (!proxy.isValid) return info
+
+        info["isActive"] = true
+        val pacUrl = proxy.pacFileUrl
+        // Uri.EMPTY is returned when no PAC file is set.
+        val pacString = pacUrl?.toString()?.takeIf { it.isNotEmpty() }
+        if (pacString != null) {
+            info["proxyType"] = "pac"
+            info["pacUrl"] = pacString
+        } else {
+            // Android only exposes a single host/port pair; treat as HTTP
+            // (system proxy applies to HTTP and HTTPS traffic alike).
+            info["proxyType"] = "http"
+            info["host"] = proxy.host
+            info["port"] = proxy.port
+        }
+        return info
     }
 
     // MARK: - EventChannel.StreamHandler

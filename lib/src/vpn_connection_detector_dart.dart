@@ -204,4 +204,83 @@ class DartVpnConnectionDetector extends VpnConnectionDetectorPlatform {
 
     return null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Proxy detection (best-effort, desktop fallback)
+  // ---------------------------------------------------------------------------
+  //
+  // There is no cross-platform Dart API to query system proxy settings, so this
+  // implementation inspects the standard environment variables honored by most
+  // Unix tools and HTTP libraries: HTTP_PROXY, HTTPS_PROXY and ALL_PROXY (and
+  // their lower-case variants). This catches proxies configured in the shell
+  // environment but will NOT catch GUI-configured system proxies on
+  // macOS/Windows/Linux. For those, use the native iOS/Android plugins or call
+  // into platform-specific code from the host application.
+
+  static const List<String> _proxyEnvKeys = [
+    'HTTPS_PROXY',
+    'https_proxy',
+    'HTTP_PROXY',
+    'http_proxy',
+    'ALL_PROXY',
+    'all_proxy',
+  ];
+
+  @override
+  Future<bool> isProxyActive() async {
+    return _readProxyFromEnv() != null;
+  }
+
+  @override
+  Future<ProxyInfo?> getProxyInfo() async {
+    final entry = _readProxyFromEnv();
+    if (entry == null) return ProxyInfo(isActive: false);
+    final parsed = _parseProxyUrl(entry.value);
+    return ProxyInfo(
+      isActive: true,
+      host: parsed?.host,
+      port: parsed?.port,
+      proxyType: _proxyTypeForEnvKey(entry.key, parsed),
+    );
+  }
+
+  MapEntry<String, String>? _readProxyFromEnv() {
+    try {
+      final env = Platform.environment;
+      for (final key in _proxyEnvKeys) {
+        final value = env[key];
+        if (value != null && value.trim().isNotEmpty) {
+          return MapEntry(key, value.trim());
+        }
+      }
+    } catch (_) {
+      // Platform.environment is unavailable on web; ignore.
+    }
+    return null;
+  }
+
+  Uri? _parseProxyUrl(String value) {
+    try {
+      // Accept values like "http://host:8080", "host:8080", "socks5://host:1080".
+      final hasScheme = value.contains('://');
+      final normalized = hasScheme ? value : 'http://$value';
+      final uri = Uri.parse(normalized);
+      if (uri.host.isEmpty) return null;
+      return uri;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ProxyType? _proxyTypeForEnvKey(String envKey, Uri? uri) {
+    final scheme = uri?.scheme.toLowerCase();
+    if (scheme != null && scheme.startsWith('socks')) return ProxyType.socks;
+    if (scheme == 'https') return ProxyType.https;
+    if (scheme == 'http') {
+      // Differentiate based on the env var name when scheme is generic http://.
+      if (envKey.toLowerCase() == 'https_proxy') return ProxyType.https;
+      return ProxyType.http;
+    }
+    return ProxyType.http;
+  }
 }
