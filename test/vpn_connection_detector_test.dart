@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 import 'package:vpn_connection_detector/src/vpn_connection_detector_platform_interface.dart';
+import 'package:vpn_connection_detector/vpn_connection_detector.dart';
 
 class MockVpnConnectionDetectorPlatform
     with MockPlatformInterfaceMixin
@@ -266,22 +266,19 @@ void main() {
     test('isTrafficInterceptionActive true when only VPN active', () async {
       mockPlatform.setMockVpnStatus(true);
       mockPlatform.setMockProxyStatus(false);
-      expect(
-          await VpnConnectionDetector.isTrafficInterceptionActive(), true);
+      expect(await VpnConnectionDetector.isTrafficInterceptionActive(), true);
     });
 
     test('isTrafficInterceptionActive true when only proxy active', () async {
       mockPlatform.setMockVpnStatus(false);
       mockPlatform.setMockProxyStatus(true);
-      expect(
-          await VpnConnectionDetector.isTrafficInterceptionActive(), true);
+      expect(await VpnConnectionDetector.isTrafficInterceptionActive(), true);
     });
 
     test('isTrafficInterceptionActive false when neither active', () async {
       mockPlatform.setMockVpnStatus(false);
       mockPlatform.setMockProxyStatus(false);
-      expect(
-          await VpnConnectionDetector.isTrafficInterceptionActive(), false);
+      expect(await VpnConnectionDetector.isTrafficInterceptionActive(), false);
     });
   });
 }

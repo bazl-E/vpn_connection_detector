@@ -151,8 +151,8 @@ class MethodChannelVpnConnectionDetector extends VpnConnectionDetectorPlatform {
       return _dartFallback.isTrafficInterceptionActive();
     }
     try {
-      final result = await methodChannel
-          .invokeMethod<bool>('isTrafficInterceptionActive');
+      final result =
+          await methodChannel.invokeMethod<bool>('isTrafficInterceptionActive');
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint(

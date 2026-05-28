@@ -166,8 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     future: VpnConnectionDetector.isProxyActive(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
-                        return const Center(
-                            child: CircularProgressIndicator());
+                        return const Center(child: CircularProgressIndicator());
                       }
                       final isActive = snapshot.data ?? false;
                       return _buildStatusChip(
@@ -309,8 +308,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         if (info.proxyType != null)
           _buildInfoRow('Type', info.proxyType!.name, Colors.purple),
-        if (info.host != null)
-          _buildInfoRow('Host', info.host!, Colors.blue),
+        if (info.host != null) _buildInfoRow('Host', info.host!, Colors.blue),
         if (info.port != null)
           _buildInfoRow('Port', info.port!.toString(), Colors.blue),
         if (info.pacUrl != null)
