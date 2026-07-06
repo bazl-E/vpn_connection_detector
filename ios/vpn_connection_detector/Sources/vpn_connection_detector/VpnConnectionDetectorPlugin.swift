@@ -207,6 +207,21 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
     
     // MARK: - Proxy Detection Methods
 
+    /// iOS does not expose the HTTPS/SOCKS proxy constants — they are macOS-only
+    /// (`kCFNetworkProxiesHTTPSEnable` and friends are marked `API_UNAVAILABLE(ios)`),
+    /// so referencing them fails to compile on iOS. `CFNetworkCopySystemProxySettings()`
+    /// still returns these entries keyed by their underlying string names, so we look
+    /// them up with the string keys directly. HTTP and PAC constants ARE available on
+    /// iOS, so those keep using the typed CFString constants.
+    private enum ProxyKey {
+        static let httpsEnable = "HTTPSEnable"
+        static let httpsProxy = "HTTPSProxy"
+        static let httpsPort = "HTTPSPort"
+        static let socksEnable = "SOCKSEnable"
+        static let socksProxy = "SOCKSProxy"
+        static let socksPort = "SOCKSPort"
+    }
+
     /// Reads the system-wide proxy settings using Apple's public CFNetwork API.
     /// Documented at:
     /// https://developer.apple.com/documentation/cfnetwork/cfnetworkcopysystemproxysettings()
@@ -221,13 +236,13 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
             return false
         }
 
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable, hostKey: kCFNetworkProxiesHTTPProxy) {
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable as String, hostKey: kCFNetworkProxiesHTTPProxy as String) {
             return true
         }
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPSEnable, hostKey: kCFNetworkProxiesHTTPSProxy) {
+        if proxyEnabled(in: cfDict, enableKey: ProxyKey.httpsEnable, hostKey: ProxyKey.httpsProxy) {
             return true
         }
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesSOCKSEnable, hostKey: kCFNetworkProxiesSOCKSProxy) {
+        if proxyEnabled(in: cfDict, enableKey: ProxyKey.socksEnable, hostKey: ProxyKey.socksProxy) {
             return true
         }
         if pacEnabled(in: cfDict) {
@@ -245,25 +260,25 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
 
         // Order of preference: HTTPS > HTTP > SOCKS > PAC.
         // HTTPS is generally the most relevant for app traffic.
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPSEnable, hostKey: kCFNetworkProxiesHTTPSProxy) {
+        if proxyEnabled(in: cfDict, enableKey: ProxyKey.httpsEnable, hostKey: ProxyKey.httpsProxy) {
             info["isActive"] = true
             info["proxyType"] = "https"
-            info["host"] = cfDict[kCFNetworkProxiesHTTPSProxy as String] as? String
-            info["port"] = (cfDict[kCFNetworkProxiesHTTPSPort as String] as? NSNumber)?.intValue
+            info["host"] = cfDict[ProxyKey.httpsProxy] as? String
+            info["port"] = (cfDict[ProxyKey.httpsPort] as? NSNumber)?.intValue
             return info
         }
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable, hostKey: kCFNetworkProxiesHTTPProxy) {
+        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesHTTPEnable as String, hostKey: kCFNetworkProxiesHTTPProxy as String) {
             info["isActive"] = true
             info["proxyType"] = "http"
             info["host"] = cfDict[kCFNetworkProxiesHTTPProxy as String] as? String
             info["port"] = (cfDict[kCFNetworkProxiesHTTPPort as String] as? NSNumber)?.intValue
             return info
         }
-        if proxyEnabled(in: cfDict, enableKey: kCFNetworkProxiesSOCKSEnable, hostKey: kCFNetworkProxiesSOCKSProxy) {
+        if proxyEnabled(in: cfDict, enableKey: ProxyKey.socksEnable, hostKey: ProxyKey.socksProxy) {
             info["isActive"] = true
             info["proxyType"] = "socks"
-            info["host"] = cfDict[kCFNetworkProxiesSOCKSProxy as String] as? String
-            info["port"] = (cfDict[kCFNetworkProxiesSOCKSPort as String] as? NSNumber)?.intValue
+            info["host"] = cfDict[ProxyKey.socksProxy] as? String
+            info["port"] = (cfDict[ProxyKey.socksPort] as? NSNumber)?.intValue
             return info
         }
         if pacEnabled(in: cfDict) {
@@ -275,10 +290,10 @@ public class VpnConnectionDetectorPlugin: NSObject, FlutterPlugin, FlutterStream
         return info
     }
 
-    private func proxyEnabled(in dict: [String: Any], enableKey: CFString, hostKey: CFString) -> Bool {
-        let enabled = (dict[enableKey as String] as? NSNumber)?.intValue ?? 0
+    private func proxyEnabled(in dict: [String: Any], enableKey: String, hostKey: String) -> Bool {
+        let enabled = (dict[enableKey] as? NSNumber)?.intValue ?? 0
         guard enabled != 0 else { return false }
-        if let host = dict[hostKey as String] as? String, !host.isEmpty {
+        if let host = dict[hostKey] as? String, !host.isEmpty {
             return true
         }
         return false
