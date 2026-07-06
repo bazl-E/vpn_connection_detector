@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
-## [2.2.0] - 2026-07-06
+## [2.1.0] - 2026-07-06
 ### Fixed
 - **Kotlin Gradle Plugin (KGP) warning (#14, #17).** Migrated Android to Flutter Built-in Kotlin: the plugin no longer applies `kotlin-android` textually, so newer Flutter (>= 3.44) no longer emits *"plugins that apply Kotlin Gradle Plugin (KGP)"*. Kotlin is applied via `pluginManager` only when the toolchain doesn't apply it for us, so **older Flutter still works**.
 - **`checkReleaseAarMetadata` / `compileSdk` failure (#16).** `androidx.core` 1.18.0 requires `compileSdk 36` (AGP 8.9.1+). `compileSdk` now resolves adaptively — **36** on AGP 8.9.1+, and **34** on older AGP (whose Flutter ships an older `androidx.core`) — so both new and old setups build.
