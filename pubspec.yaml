@@ -6,8 +6,8 @@ repository: https://github.com/bazl-E/vpn_connection_detector
 issue_tracker: https://github.com/bazl-E/vpn_connection_detector/issues
 
 environment:
-  sdk: ^3.12.0
-  flutter: ">=3.44.0"
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: ">=3.7.0"
   
 platforms:
   android:

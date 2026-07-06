@@ -8,14 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Released]
 
 ## [2.2.0] - 2026-07-06
+### Fixed
+- **Kotlin Gradle Plugin (KGP) warning (#14, #17).** Migrated Android to Flutter Built-in Kotlin: the plugin no longer applies `kotlin-android` textually, so newer Flutter (>= 3.44) no longer emits *"plugins that apply Kotlin Gradle Plugin (KGP)"*. Kotlin is applied via `pluginManager` only when the toolchain doesn't apply it for us, so **older Flutter still works**.
+- **`checkReleaseAarMetadata` / `compileSdk` failure (#16).** `androidx.core` 1.18.0 requires `compileSdk 36` (AGP 8.9.1+). `compileSdk` now resolves adaptively — **36** on AGP 8.9.1+, and **34** on older AGP (whose Flutter ships an older `androidx.core`) — so both new and old setups build.
+
 ### Changed
-- **Migrated Android to Flutter Built-in Kotlin.** The plugin no longer applies the Kotlin Gradle Plugin (`kotlin-android`) itself; Flutter applies it, clearing the *"plugins that apply Kotlin Gradle Plugin (KGP)"* warning that would break future Flutter builds (#14, #17).
-- Bumped Android Gradle Plugin to `9.0.1`, Kotlin to `2.3.20`, and set `compileSdk 36` to satisfy `androidx.core` 1.18.0's requirement (which needs AGP 8.9.1+ / compileSdk 36), fixing `checkReleaseAarMetadata` failures (#16). The example app's Gradle wrapper is updated to `9.1.0`.
 - Replaced the deprecated `kotlinOptions { jvmTarget }` block with the top-level `kotlin { compilerOptions { jvmTarget } }` DSL.
+- Bumped the plugin's declared Android Gradle Plugin to `9.0.1` and Kotlin to `2.3.20`; the example app is updated to AGP 9.0.1 / Kotlin 2.3.20 / Gradle 9.1.0.
 - Updated `connectivity_plus` to `^7.2.0`.
 
-### Breaking
-- **Minimum supported SDK is now Flutter 3.44 / Dart 3.12** (required for Built-in Kotlin).
+### Compatibility
+- **No minimum-SDK bump for consumers.** Minimum stays wide (`flutter: >=3.7.0`, `sdk: >=3.2.0`, matching `connectivity_plus 7.2.0`). Existing users on older Flutter continue to work.
 
 ## [2.0.3] - 2026-04-02
 ### Added
