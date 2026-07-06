@@ -2,14 +2,16 @@ group 'com.bazle.vpn_connection_detector'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.9.0'
+    ext.kotlin_version = '2.3.20'
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.1.0'
+        classpath 'com.android.tools.build:gradle:9.0.1'
+        // KGP is kept on the classpath so it can be applied on older toolchains
+        // where Flutter does not apply it for us (see the pluginManager block below).
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -22,19 +24,39 @@ allprojects {
 }
 
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+
+// ---------------------------------------------------------------------------
+// Backwards- AND forwards-compatible Kotlin + compileSdk handling.
+// Supports old Flutter (3.7+) through new Flutter (>= 3.44 / AGP 9).
+// ---------------------------------------------------------------------------
+
+// AGP version of the *consuming app* (this string is provided by AGP on the classpath).
+def agpParts = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')
+def agpMajor = agpParts[0].toInteger()
+def agpMinor = agpParts.size() > 1 ? agpParts[1].toInteger() : 0
+
+// Built-in Kotlin: Flutter >= 3.44 applies the Kotlin plugin to plugin modules
+// itself. Older Flutter does not, so we apply it here — but via `pluginManager`
+// (NOT `apply plugin: 'kotlin-android'`) so the newer Flutter's *textual* KGP scan
+// does not flag this plugin with the "plugins that apply Kotlin Gradle Plugin (KGP)"
+// warning. `hasPlugin` keeps it a no-op when Flutter already applied it.
+// Guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+if (!project.pluginManager.hasPlugin('org.jetbrains.kotlin.android')) {
+    project.pluginManager.apply('org.jetbrains.kotlin.android')
+}
+
+// compileSdk 36 is required by androidx.core 1.18.0 (bundled with newer Flutter)
+// but needs AGP 8.9.1+. On older AGP, fall back to 34 — the older Flutter that
+// ships that AGP also ships an older androidx.core that builds fine against 34.
+def resolvedCompileSdk = (agpMajor > 8 || (agpMajor == 8 && agpMinor >= 9)) ? 36 : 34
 
 android {
     namespace 'com.bazle.vpn_connection_detector'
-    compileSdk 36
+    compileSdk resolvedCompileSdk
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        jvmTarget = '1.8'
     }
 
     sourceSets {
@@ -44,8 +66,10 @@ android {
     defaultConfig {
         minSdk 21
     }
+}
 
-    dependencies {
-        implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
     }
 }
