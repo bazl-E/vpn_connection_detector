@@ -2,14 +2,16 @@ group 'com.bazle.vpn_connection_detector'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.9.0'
+    ext.kotlin_version = '2.3.20'
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.1.0'
+        classpath 'com.android.tools.build:gradle:9.0.1'
+        // KGP is kept on the classpath so Flutter's built-in Kotlin can apply it,
+        // but this plugin no longer applies `kotlin-android` itself (see below).
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -21,8 +23,12 @@ allprojects {
     }
 }
 
+// Built-in Kotlin migration: do NOT apply the Kotlin Gradle Plugin (KGP) here.
+// Flutter (>= 3.44) applies `kotlin-android` to plugin modules itself. Applying it
+// here as well triggers the "plugins that apply Kotlin Gradle Plugin (KGP)" warning
+// that fails the build on future Flutter versions.
+// Guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
 
 android {
     namespace 'com.bazle.vpn_connection_detector'
@@ -33,10 +39,6 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }
@@ -44,8 +46,10 @@ android {
     defaultConfig {
         minSdk 21
     }
+}
 
-    dependencies {
-        implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
     }
 }

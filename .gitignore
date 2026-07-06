@@ -33,3 +33,9 @@ local.properties
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Android / Gradle build caches (never commit these)
+.gradle/
+**/.gradle/
+.kotlin/
+**/.kotlin/

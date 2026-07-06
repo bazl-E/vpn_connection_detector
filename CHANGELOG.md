@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]
 
+## [2.2.0] - 2026-07-06
+### Changed
+- **Migrated Android to Flutter Built-in Kotlin.** The plugin no longer applies the Kotlin Gradle Plugin (`kotlin-android`) itself; Flutter applies it, clearing the *"plugins that apply Kotlin Gradle Plugin (KGP)"* warning that would break future Flutter builds (#14, #17).
+- Bumped Android Gradle Plugin to `9.0.1`, Kotlin to `2.3.20`, and set `compileSdk 36` to satisfy `androidx.core` 1.18.0's requirement (which needs AGP 8.9.1+ / compileSdk 36), fixing `checkReleaseAarMetadata` failures (#16). The example app's Gradle wrapper is updated to `9.1.0`.
+- Replaced the deprecated `kotlinOptions { jvmTarget }` block with the top-level `kotlin { compilerOptions { jvmTarget } }` DSL.
+- Updated `connectivity_plus` to `^7.2.0`.
+
+### Breaking
+- **Minimum supported SDK is now Flutter 3.44 / Dart 3.12** (required for Built-in Kotlin).
+
 ## [2.0.3] - 2026-04-02
 ### Added
 - **Swift Package Manager (SwiftPM) support** for iOS plugin - Flutter plugins now support both CocoaPods and SwiftPM simultaneously
