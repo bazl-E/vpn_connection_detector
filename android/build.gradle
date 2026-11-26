@@ -35,13 +35,19 @@ def agpParts = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')
 def agpMajor = agpParts[0].toInteger()
 def agpMinor = agpParts.size() > 1 ? agpParts[1].toInteger() : 0
 
-// Built-in Kotlin: Flutter >= 3.44 applies the Kotlin plugin to plugin modules
-// itself. Older Flutter does not, so we apply it here — but via `pluginManager`
-// (NOT `apply plugin: 'kotlin-android'`) so the newer Flutter's *textual* KGP scan
-// does not flag this plugin with the "plugins that apply Kotlin Gradle Plugin (KGP)"
-// warning. `hasPlugin` keeps it a no-op when Flutter already applied it.
+// Built-in Kotlin: with AGP 9+, Kotlin support is built into AGP (unless the app
+// opts out with `android.builtInKotlin=false`) and applying the Kotlin Android
+// plugin on top of it FAILS the build ("plugin is no longer required for Kotlin
+// support since AGP 9.0"). On AGP < 9, or when the app opted out, nothing applies
+// Kotlin for us, so we apply it here — via `pluginManager` (NOT
+// `apply plugin: 'kotlin-android'`) so the newer Flutter's *textual* KGP scan does
+// not flag this plugin with the "plugins that apply Kotlin Gradle Plugin (KGP)"
+// warning.
 // Guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
-if (!project.pluginManager.hasPlugin('org.jetbrains.kotlin.android')) {
+def builtInKotlinActive = agpMajor >= 9 &&
+        (!project.hasProperty('android.builtInKotlin') ||
+                Boolean.parseBoolean(project.property('android.builtInKotlin').toString()))
+if (!builtInKotlinActive && !project.pluginManager.hasPlugin('org.jetbrains.kotlin.android')) {
     project.pluginManager.apply('org.jetbrains.kotlin.android')
 }
 
